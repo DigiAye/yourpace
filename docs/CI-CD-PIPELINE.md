@@ -7,10 +7,18 @@ Complete deployment pipeline for YourPace, covering all automated workflows, inf
 The YourPace application uses a multi-environment CI/CD pipeline that handles:
 - **Multi-environment deployments** (dev, staging, production)
 - **Automated infrastructure deployment** via AWS CDK
-- **Frontend builds and deployments** via Amplify (with CloudFront + S3 fallback)
-- **Automatic Amplify builds** triggered on frontend changes
+- **Frontend builds and deployments** via Amplify (webhook-based)
+- **Automatic Amplify builds** triggered on frontend changes via webhooks
 - **Destructive change detection** with manual approvals
 - **Post-deployment verification** with automated checks
+
+### Amplify Deployment Strategy
+
+YourPace uses a **single Amplify app** with **webhook-based builds** (DigiAye pattern):
+- ✅ One Amplify app manages all three environments (dev, staging, prod)
+- ✅ Webhook-based triggering (no GitHub OAuth issues)
+- ✅ Automatic builds on frontend changes
+- ✅ Code-first infrastructure (CDK-managed)
 
 ---
 
@@ -133,6 +141,43 @@ sequenceDiagram
     CF->>CF: Invalidate cache
     GHA->>GHA: Verify: curl yourpace.cloud, www, auth
     Note over Cognito: Production deployment complete
+```
+
+---
+
+## Amplify Frontend Deployment
+
+### `.github/workflows/amplify-deploy.yml`
+
+**Frontend-only deployment workflow (webhook-based)**
+
+**Triggers:**
+- Push to `main`, `staging`, or `develop` branches (frontend changes only)
+- Path filtering: only triggers on changes to `frontend/`, `amplify.yml`, or workflow file
+
+**How it works:**
+1. Detects environment from branch (develop→dev, staging→staging, main→prod)
+2. Triggers the appropriate Amplify webhook for that branch
+3. Amplify automatically builds and deploys the frontend
+4. Build progress visible in Amplify console
+
+**GitHub Secrets Required:**
+- `AMPLIFY_WEBHOOK_MAIN` - Webhook URL for main branch
+- `AMPLIFY_WEBHOOK_STAGING` - Webhook URL for staging branch
+- `AMPLIFY_WEBHOOK_DEVELOP` - Webhook URL for develop branch
+
+**Amplify Configuration:**
+- Single Amplify app manages all three environments
+- Three branches: main (PRODUCTION), staging (BETA), develop (DEVELOPMENT)
+- autoBuild disabled (builds triggered via webhooks instead)
+- Webhook-based triggering avoids GitHub OAuth issues
+
+**Build Process:**
+```
+1. npm ci (install dependencies)
+2. npm run build (Next.js build)
+3. Output to 'out' directory (static export)
+4. Amplify deploys to CloudFront + S3
 ```
 
 ---
