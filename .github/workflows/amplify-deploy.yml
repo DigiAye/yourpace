@@ -121,16 +121,33 @@ jobs:
 
       - name: Trigger Amplify build
         env:
-          AMPLIFY_APP_ID: ${{ secrets.AMPLIFY_APP_ID }}
           ENVIRONMENT: ${{ needs.detect-environment.outputs.environment }}
           AMPLIFY_BRANCH: ${{ needs.detect-environment.outputs.amplify-branch }}
         run: |
+          # Select the correct AMPLIFY_APP_ID based on environment
+          case "$ENVIRONMENT" in
+            prod)
+              AMPLIFY_APP_ID="${{ secrets.AMPLIFY_APP_ID_MAIN }}"
+              ;;
+            staging)
+              AMPLIFY_APP_ID="${{ secrets.AMPLIFY_APP_ID_STAGING }}"
+              ;;
+            dev)
+              AMPLIFY_APP_ID="${{ secrets.AMPLIFY_APP_ID_DEVELOP }}"
+              ;;
+            *)
+              echo "❌ Unknown environment: $ENVIRONMENT"
+              exit 1
+              ;;
+          esac
+
           if [ -z "$AMPLIFY_APP_ID" ]; then
-            echo "❌ AMPLIFY_APP_ID secret not configured"
+            echo "❌ AMPLIFY_APP_ID secret not configured for environment: $ENVIRONMENT"
             exit 1
           fi
 
           echo "🚀 Triggering Amplify build for branch: $AMPLIFY_BRANCH ($ENVIRONMENT environment)"
+          echo "   App ID: $AMPLIFY_APP_ID"
 
           # Start a new Amplify build job
           JOB_ID=$(aws amplify start-job \
