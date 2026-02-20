@@ -11,6 +11,9 @@ export interface FrontendProps {
   readonly domainName?: string;
   readonly certificate?: acm.ICertificate; // eu-west-1 certificate for CloudFront
   readonly buildPath?: string; // path to frontend/.next/standalone or out/
+  readonly amplifyDomainMain?: string; // Amplify domain for main branch (e.g., main.d32w5qjq8u9hab.amplifyapp.com)
+  readonly amplifyDomainStaging?: string; // Amplify domain for staging branch
+  readonly amplifyDomainDevelop?: string; // Amplify domain for develop branch
 }
 
 /**
@@ -47,30 +50,19 @@ export class Frontend extends Construct {
     const createDistribution = (
       id: string,
       subdomain: string,
-      bucketName: string,
+      amplifyDomain: string,
       domainNames?: string[],
       cert?: acm.ICertificate
     ): cloudfront.Distribution => {
-      // Import or create S3 bucket
-      let bucket: s3.Bucket | s3.IBucket;
-      try {
-        bucket = s3.Bucket.fromBucketName(this, `${id}BucketImported`, bucketName);
-        console.log(`✅ Imported existing S3 bucket: ${bucketName}`);
-      } catch (e) {
-        console.log(`📦 Creating new S3 bucket: ${bucketName}`);
-        bucket = new s3.Bucket(this, `${id}Bucket`, {
-          bucketName,
-          removalPolicy,
-          autoDeleteObjects: !isProd,
-          blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
-          encryption: s3.BucketEncryption.S3_MANAGED,
-        });
-      }
+      // Create HTTP origin pointing to Amplify domain
+      const amplifyOrigin = new cloudfrontOrigins.HttpOrigin(amplifyDomain, {
+        protocolPolicy: cloudfront.OriginProtocolPolicy.HTTPS_ONLY,
+      });
       
       const distribution = new cloudfront.Distribution(this, id, {
         comment: `YourPace frontend - ${subdomain}`,
         defaultBehavior: {
-          origin: cloudfrontOrigins.S3BucketOrigin.withOriginAccessControl(bucket as s3.Bucket),
+          origin: amplifyOrigin,
           viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
           cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
           allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
@@ -103,6 +95,11 @@ export class Frontend extends Construct {
     // ============================================
     // Create All 3 Distributions
     // ============================================
+    // Use Amplify domains if provided, otherwise use placeholder domains
+    const amplifyDomainMain = props.amplifyDomainMain || 'main.amplifyapp.com';
+    const amplifyDomainStaging = props.amplifyDomainStaging || 'staging.amplifyapp.com';
+    const amplifyDomainDevelop = props.amplifyDomainDevelop || 'develop.amplifyapp.com';
+
     // Prod (www) - include both www and apex domain
     const prodDomainNames = props.domainName && cloudfrontCertificate 
       ? [`www.${props.domainName}`, props.domainName]
@@ -111,7 +108,7 @@ export class Frontend extends Construct {
     this.wwwDistribution = createDistribution(
       'WwwDistribution',
       'www',
-      'yourpace-frontend-prod',
+      amplifyDomainMain,
       prodDomainNames,
       cloudfrontCertificate
     );
@@ -120,7 +117,7 @@ export class Frontend extends Construct {
     this.stagingDistribution = createDistribution(
       'StagingDistribution',
       'staging',
-      'yourpace-frontend-staging',
+      amplifyDomainStaging,
       props.domainName && cloudfrontCertificate ? [`staging.${props.domainName}`] : undefined,
       cloudfrontCertificate
     );
@@ -129,7 +126,7 @@ export class Frontend extends Construct {
     this.devDistribution = createDistribution(
       'DevDistribution',
       'dev',
-      'yourpace-frontend-dev',
+      amplifyDomainDevelop,
       props.domainName && cloudfrontCertificate ? [`dev.${props.domainName}`] : undefined,
       cloudfrontCertificate
     );

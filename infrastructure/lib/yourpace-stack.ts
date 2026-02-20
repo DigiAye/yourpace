@@ -2,7 +2,7 @@ import * as cdk from 'aws-cdk-lib';
 import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import * as route53 from 'aws-cdk-lib/aws-route53';
 import { Construct } from 'constructs';
-import { Network, Storage, Auth, Dns, Frontend, AmplifyApp, WebhookProxy } from './constructs';
+import { Network, Storage, Auth, Dns, Frontend, AmplifyApp, WebhookProxy, CloudFrontInvalidator } from './constructs';
 
 export interface YourPaceStackProps extends cdk.StackProps {
   readonly environment: string;
@@ -117,10 +117,23 @@ export class YourPaceStack extends cdk.Stack {
       environment,
       domainName,
       certificate: cloudfrontCertificate,
+      amplifyDomainMain: process.env.AMPLIFY_DOMAIN_MAIN,
+      amplifyDomainStaging: process.env.AMPLIFY_DOMAIN_STAGING,
+      amplifyDomainDevelop: process.env.AMPLIFY_DOMAIN_DEVELOP,
     });
 
     // ============================================
-    // 6. DNS (only when domain is provided)
+    // 6. CloudFront Cache Invalidator (EventBridge + Lambda)
+    // ============================================
+    new CloudFrontInvalidator(this, 'CloudFrontInvalidator', {
+      amplifyAppId: amplify.appId,
+      distributionIdMain: frontend.wwwDistribution.distributionId,
+      distributionIdStaging: frontend.stagingDistribution.distributionId,
+      distributionIdDevelop: frontend.devDistribution.distributionId,
+    });
+
+    // ============================================
+    // 7. DNS (only when domain is provided)
     // ============================================
     if (domainName && hostedZoneId) {
       new Dns(this, 'Dns', {
