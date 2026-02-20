@@ -44,6 +44,10 @@ const hostedZoneId = app.node.tryGetContext('hostedZoneId');
 // Can be provided via: -c certificateArn=<ARN> or CERTIFICATE_ARN env var
 const certificateArn = app.node.tryGetContext('certificateArn') || process.env.CERTIFICATE_ARN;
 
+// OPTIONAL: Cognito Certificate ARN (for Cognito custom domain in eu-west-1)
+// Can be provided via: -c cognitoCertificateArn=<ARN> or COGNITO_CERTIFICATE_ARN env var
+const cognitoCertificateArn = app.node.tryGetContext('cognitoCertificateArn') || process.env.COGNITO_CERTIFICATE_ARN;
+
 // OPTIONAL: Amplify configuration (only for Amplify deployment)
 const githubOwner = app.node.tryGetContext('githubOwner');
 const githubRepo = app.node.tryGetContext('githubRepo');

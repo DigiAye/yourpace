@@ -6,8 +6,10 @@ import { Construct } from 'constructs';
 export interface AuthProps {
   readonly environment: string;
   readonly domainName?: string;
-  readonly certificate?: acm.ICertificate;
-  readonly certificateArn?: string; // us-east-1 certificate ARN for Cognito
+  readonly certificate?: acm.ICertificate; // us-east-1 certificate for CloudFront (not used in Auth)
+  readonly certificateArn?: string; // us-east-1 certificate ARN (not used in Auth)
+  readonly cognitoCertificate?: acm.ICertificate; // eu-west-1 certificate for Cognito custom domain
+  readonly cognitoCertificateArn?: string; // eu-west-1 certificate ARN for Cognito custom domain
 }
 
 /**
@@ -129,12 +131,12 @@ export class Auth extends Construct {
 
     // Configure domain — use custom domain with certificate
     // Frontend expects: NEXT_PUBLIC_COGNITO_DOMAIN=auth.yourpace.cloud
-    if (authDomainName && props.certificate) {
-      // Use custom domain with certificate
+    if (authDomainName && props.cognitoCertificate) {
+      // Use custom domain with eu-west-1 certificate
       this.userPoolDomain = this.userPool.addDomain('Domain', {
         customDomain: {
           domainName: authDomainName,
-          certificate: props.certificate,
+          certificate: props.cognitoCertificate,
         },
       });
       this.authDomain = authDomainName;

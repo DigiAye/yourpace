@@ -7,8 +7,10 @@ export interface YourPaceStackProps extends cdk.StackProps {
   readonly environment: string;
   readonly domainName?: string;
   readonly hostedZoneId?: string;
-  readonly certificate?: acm.ICertificate;
-  readonly certificateArn?: string; // us-east-1 certificate ARN for Cognito
+  readonly certificate?: acm.ICertificate; // us-east-1 certificate for CloudFront
+  readonly certificateArn?: string; // us-east-1 certificate ARN for CloudFront
+  readonly cognitoCertificate?: acm.ICertificate; // eu-west-1 certificate for Cognito
+  readonly cognitoCertificateArn?: string; // eu-west-1 certificate ARN for Cognito
 }
 
 /**
@@ -54,7 +56,9 @@ export class YourPaceStack extends cdk.Stack {
       environment, 
       domainName, 
       certificate: props.certificate,
-      certificateArn: props.certificateArn, // us-east-1 certificate for Cognito
+      certificateArn: props.certificateArn,
+      cognitoCertificate: props.cognitoCertificate, // eu-west-1 certificate for Cognito custom domain
+      cognitoCertificateArn: props.cognitoCertificateArn,
     });
 
     // ============================================
