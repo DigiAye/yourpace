@@ -23,14 +23,14 @@ if (!account) {
     'This prevents accidental resource deletion in wrong account.\n\n' +
     'Provide via:\n' +
     '  cdk deploy -c account=<YOUR_ACCOUNT_ID>\n' +
-    '  or AWS CLI profile: --profile yourpace-dev'
+    '  or AWS CLI profile: --profile yourpace-prod'
   );
 }
 
 // OPTIONAL: Region (safe default)
 const region = app.node.tryGetContext('region') || 'eu-west-1';
 
-// OPTIONAL: Environment (safe default)
+// OPTIONAL: Environment (safe default) - used for resource naming, not stack naming
 const env = app.node.tryGetContext('env') || 'dev';
 if (!['dev', 'staging', 'prod'].includes(env)) {
   throw new Error(`Invalid environment: ${env}. Must be: dev, staging, or prod`);
@@ -61,11 +61,11 @@ if ((githubOwner || githubRepo || githubToken) && (!githubOwner || !githubRepo |
 }
 
 // ============================================
-// Stack Name Safety Check
+// Stack Name (Single name, environment via context)
 // ============================================
-// Stack name MUST match existing deployment to avoid orphaning resources
-const expectedStackName = `YourPaceStack-${env}`;
-console.log(`\n📋 Stack Name: ${expectedStackName}`);
+// Following DigiAye pattern: single stack name, environment controlled via -c env parameter
+const stackName = 'YourPaceStack';
+console.log(`\n📋 Stack Name: ${stackName}`);
 console.log(`   Account: ${account}`);
 console.log(`   Region: ${region}`);
 console.log(`   Environment: ${env}\n`);
@@ -135,7 +135,7 @@ if (domainName && certificateStack) {
   }
 }
 
-const mainStack = new YourPaceStack(app, expectedStackName, {
+const mainStack = new YourPaceStack(app, stackName, {
   environment: env,
   domainName: certificate ? domainName : undefined, // Only use domain if certificate is available
   hostedZoneId: certificate ? hostedZoneId : undefined,

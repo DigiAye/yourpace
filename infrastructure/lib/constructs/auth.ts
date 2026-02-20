@@ -129,23 +129,31 @@ export class Auth extends Construct {
 
     // Configure domain based on whether we have a custom domain and certificate
     // For Cognito, we need the us-east-1 certificate ARN
-    if (authDomainName && props.certificateArn) {
-      // Import the us-east-1 certificate for Cognito
-      const cognitoCertificate = acm.Certificate.fromCertificateArn(
-        this,
-        'CognitoCertificate',
-        props.certificateArn
-      );
-      // Use custom domain with ACM certificate
-      this.userPoolDomain = this.userPool.addDomain('Domain', {
-        customDomain: {
-          domainName: authDomainName,
-          certificate: cognitoCertificate,
-        },
-      });
-      this.authDomain = authDomainName;
-      // For custom domains, the cognitoDomainName is the same as authDomain
-      this.cognitoDomainName = authDomainName;
+    // DEFENSIVE: Only use custom domain if BOTH domainName AND certificate are provided
+    if (authDomainName && props.certificate) {
+      // Use custom domain with ACM certificate (passed from stack)
+      try {
+        this.userPoolDomain = this.userPool.addDomain('Domain', {
+          customDomain: {
+            domainName: authDomainName,
+            certificate: props.certificate,
+          },
+        });
+        this.authDomain = authDomainName;
+        this.cognitoDomainName = authDomainName;
+        console.log(`✅ Cognito custom domain: ${authDomainName}`);
+      } catch (e) {
+        console.log(`⚠️  Failed to create custom domain, falling back to AWS-managed domain: ${e}`);
+        // Fall back to AWS-managed domain
+        const domainPrefix = `yourpace-auth-${props.environment}`;
+        this.userPoolDomain = this.userPool.addDomain('Domain', {
+          cognitoDomain: {
+            domainPrefix,
+          },
+        });
+        this.authDomain = `${domainPrefix}.auth.eu-west-1.amazoncognito.com`;
+        this.cognitoDomainName = this.authDomain;
+      }
     } else {
       // Fall back to AWS-managed Cognito domain
       const domainPrefix = `yourpace-auth-${props.environment}`;
