@@ -18,13 +18,15 @@ export interface AmplifyAppProps {
 }
 
 /**
- * Creates the Amplify application with service role, build configuration,
- * and branch deployments (main, staging, develop).
+ * References an existing Amplify application with GitHub connection.
+ * The app must be created manually via AWS Console with GitHub OAuth.
+ * 
+ * App ID is read from AMPLIFY_APP_ID environment variable.
  */
 export class AmplifyApp extends Construct {
   /** The Amplify App instance */
   public readonly app: amplify.App;
-  /** Amplify's default domain (e.g., main.d1234567890.amplifyapp.com) */
+  /** Amplify's default domain */
   public readonly defaultDomain: string;
   /** Amplify App ID */
   public readonly appId: string;
@@ -32,88 +34,19 @@ export class AmplifyApp extends Construct {
   constructor(scope: Construct, id: string, props: AmplifyAppProps) {
     super(scope, id);
 
-    // ============================================
-    // Amplify Service Role (with SSM read permission)
-    // Note: Let CDK generate name to avoid conflicts during refactoring
-    // ============================================
-    const serviceRole = new iam.Role(this, 'ServiceRole', {
-      assumedBy: new iam.ServicePrincipal('amplify.amazonaws.com'),
-      description: 'Service role for Amplify with SSM read access for build configuration',
-    });
-
-    // Grant SSM read access for build-time configuration
-    serviceRole.addToPolicy(new iam.PolicyStatement({
-      effect: iam.Effect.ALLOW,
-      actions: ['ssm:GetParameter', 'ssm:GetParameters'],
-      resources: [`arn:aws:ssm:${props.region}:${props.account}:parameter/yourpace/*`],
-    }));
+    // Get App ID from environment variable
+    const appId = process.env.AMPLIFY_APP_ID;
+    if (!appId) {
+      throw new Error('AMPLIFY_APP_ID environment variable is required');
+    }
 
     // ============================================
-    // Amplify App
-    // ⚠️ appName: 'yourpace' - DO NOT CHANGE
-    // ⚠️ CRITICAL: Preserve logical ID - has GitHub connection
+    // Reference Existing Amplify App
     // ============================================
-    this.app = new amplify.App(this, 'App', {
-      appName: 'yourpace', // ⚠️ DO NOT CHANGE - will cause recreation
-      description: 'YourPace fitness tracking application',
-      platform: amplify.Platform.WEB,
-      autoBranchDeletion: true,
-      role: serviceRole,
-      buildSpec: codebuild.BuildSpec.fromObjectToYaml({
-        version: '1.0',
-        applications: [{
-          appRoot: 'frontend',
-          frontend: {
-            phases: {
-              preBuild: {
-                commands: [
-                  'npm ci',
-                ],
-              },
-              build: { commands: ['npm run build'] },
-            },
-            artifacts: { baseDirectory: 'out', files: ['**/*'] },
-            cache: { paths: ['node_modules/**/*'] },
-          },
-        }],
-      }),
-      environmentVariables: { NEXT_PUBLIC_ENVIRONMENT: 'production' },
-    });
-    // ⚠️ CRITICAL: Preserve original logical ID - has GitHub connection
-    (this.app.node.defaultChild as cdk.CfnResource).overrideLogicalId('YourPaceAppB7D301D9');
-
-    // ============================================
-    // Branch Configurations
-    // ⚠️ CRITICAL: Preserve original logical IDs for branches
-    // ============================================
-    // NOTE: autoBuild is disabled because GitHub OAuth is broken for CDK-created apps.
-    // Builds are triggered via webhook from GitHub Actions CI workflow instead.
-    const mainBranch = this.app.addBranch('main', {
-      branchName: 'main',
-      stage: 'PRODUCTION',
-      autoBuild: false,
-      environmentVariables: { NEXT_PUBLIC_ENVIRONMENT: 'production' },
-    });
-    (mainBranch.node.defaultChild as cdk.CfnResource).overrideLogicalId('YourPaceAppmainA894DEC7');
-
-    const stagingBranch = this.app.addBranch('staging', {
-      branchName: 'staging',
-      stage: 'BETA',
-      autoBuild: false,
-      environmentVariables: { NEXT_PUBLIC_ENVIRONMENT: 'staging' },
-    });
-    (stagingBranch.node.defaultChild as cdk.CfnResource).overrideLogicalId('YourPaceAppstagingC0A42FD8');
-
-    const developBranch = this.app.addBranch('develop', {
-      branchName: 'develop',
-      stage: 'DEVELOPMENT',
-      autoBuild: false,
-      environmentVariables: { NEXT_PUBLIC_ENVIRONMENT: 'development' },
-    });
-    (developBranch.node.defaultChild as cdk.CfnResource).overrideLogicalId('YourPaceAppdevelop1517C8C6');
-
-    // Expose useful properties
+    // This app was created manually via AWS Console with GitHub OAuth connection
+    // The app already has branches and webhooks configured
+    this.app = amplify.App.fromAppId(this, 'App', appId) as amplify.App;
+    this.appId = appId;
     this.defaultDomain = this.app.defaultDomain;
-    this.appId = this.app.appId;
   }
 }
