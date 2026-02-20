@@ -3,14 +3,14 @@ import { Construct } from 'constructs';
 import { AmplifyApp } from './constructs/amplify';
 
 export interface AmplifyStackProps extends cdk.StackProps {
-  readonly githubOwner: string;
-  readonly githubRepo: string;
-  readonly githubToken: string;
+  // No GitHub credentials needed - builds are triggered via webhooks
 }
 
 /**
- * Amplify Stack - Deploys the Amplify app with GitHub connection
+ * Amplify Stack - Deploys the Amplify app with webhook-based builds
  * This is separate from the main YourPaceStack to allow independent management
+ * 
+ * NOTE: GitHub OAuth is disabled. Builds are triggered via webhooks from GitHub Actions.
  */
 export class AmplifyStack extends cdk.Stack {
   public readonly amplifyApp: AmplifyApp;
@@ -21,9 +21,6 @@ export class AmplifyStack extends cdk.Stack {
     this.amplifyApp = new AmplifyApp(this, 'AmplifyApp', {
       region: this.region,
       account: this.account,
-      githubOwner: props.githubOwner,
-      githubRepo: props.githubRepo,
-      githubToken: props.githubToken,
     });
 
     // Output the Amplify App ID

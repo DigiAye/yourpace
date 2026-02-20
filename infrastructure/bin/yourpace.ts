@@ -47,21 +47,8 @@ const certificateArn = app.node.tryGetContext('certificateArn') || process.env.C
 // Can be provided via: -c cognitoCertificateArn=<ARN> or COGNITO_CERTIFICATE_ARN env var
 const cognitoCertificateArn = app.node.tryGetContext('cognitoCertificateArn') || process.env.COGNITO_CERTIFICATE_ARN;
 
-// OPTIONAL: Amplify configuration (only for Amplify deployment)
-const githubOwner = app.node.tryGetContext('githubOwner');
-const githubRepo = app.node.tryGetContext('githubRepo');
-const githubToken = app.node.tryGetContext('githubToken') || process.env.GITHUB_TOKEN;
-
-// Validate GitHub config if provided
-if ((githubOwner || githubRepo || githubToken) && (!githubOwner || !githubRepo || !githubToken)) {
-  throw new Error(
-    '❌ GitHub configuration incomplete!\n' +
-    'If deploying Amplify, provide all three:\n' +
-    '  -c githubOwner=<OWNER>\n' +
-    '  -c githubRepo=<REPO>\n' +
-    '  -c githubToken=<TOKEN> or GITHUB_TOKEN env var'
-  );
-}
+// NOTE: Amplify no longer requires GitHub credentials
+// Builds are triggered via webhooks from GitHub Actions CI workflow
 
 // ============================================
 // Stack Name (Single name, environment via context)
@@ -74,29 +61,21 @@ console.log(`   Region: ${region}`);
 console.log(`   Environment: ${env}\n`);
 
 // ============================================
-// Amplify Stack (NEW - only if GitHub config provided)
+// Amplify Stack (Webhook-based builds)
 // ============================================
-let amplifyStack: AmplifyStack | undefined;
-if (githubOwner && githubRepo && githubToken) {
-  amplifyStack = new AmplifyStack(app, `YourPaceAmplifyStack-${env}`, {
-    env: {
-      account,
-      region,
-    },
-    githubOwner,
-    githubRepo,
-    githubToken,
-    description: `YourPace Amplify App - ${env} environment`,
-    tags: {
-      Project: 'yourpace',
-      Environment: env,
-      ManagedBy: 'cdk',
-    },
-  });
-  console.log('✅ Amplify Stack will be deployed');
-} else {
-  console.log('⏭️  Skipping Amplify Stack (GitHub config not provided)');
-}
+const amplifyStack = new AmplifyStack(app, `YourPaceAmplifyStack-${env}`, {
+  env: {
+    account,
+    region,
+  },
+  description: `YourPace Amplify App - ${env} environment`,
+  tags: {
+    Project: 'yourpace',
+    Environment: env,
+    ManagedBy: 'cdk',
+  },
+});
+console.log('✅ Amplify Stack will be deployed (webhook-based builds)');
 
 // ============================================
 // CloudFront Certificate Stack (us-east-1) - OPTIONAL

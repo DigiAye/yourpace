@@ -8,24 +8,21 @@ import { Construct } from 'constructs';
 // Amplify Application
 // ============================================
 // Hosts the Next.js frontend with branch-based deployments
-// Connected to GitHub repository for auto-builds
+// ⚠️ DO NOT CHANGE appName - will cause recreation
 
 export interface AmplifyAppProps {
   /** AWS region for SSM parameter ARNs */
   readonly region: string;
   /** AWS account ID for SSM parameter ARNs */
   readonly account: string;
-  /** GitHub owner (e.g., DigiAye) */
-  readonly githubOwner: string;
-  /** GitHub repository name (e.g., yourpace) */
-  readonly githubRepo: string;
-  /** GitHub OAuth token for repository connection */
-  readonly githubToken: string;
 }
 
 /**
- * Creates the Amplify application with GitHub connection, service role, build configuration,
+ * Creates the Amplify application with service role, build configuration,
  * and branch deployments (main, staging, develop).
+ * 
+ * NOTE: GitHub OAuth is disabled because CDK-created apps have issues with GitHub connection.
+ * Builds are triggered via webhook from GitHub Actions CI workflow instead.
  */
 export class AmplifyApp extends Construct {
   /** The Amplify App instance */
@@ -39,7 +36,8 @@ export class AmplifyApp extends Construct {
     super(scope, id);
 
     // ============================================
-    // Amplify Service Role
+    // Amplify Service Role (with SSM read permission)
+    // Note: Let CDK generate name to avoid conflicts during refactoring
     // ============================================
     const serviceRole = new iam.Role(this, 'ServiceRole', {
       assumedBy: new iam.ServicePrincipal('amplify.amazonaws.com'),
@@ -54,19 +52,16 @@ export class AmplifyApp extends Construct {
     }));
 
     // ============================================
-    // Amplify App with GitHub Connection
+    // Amplify App
+    // ⚠️ appName: 'yourpace' - DO NOT CHANGE
+    // ⚠️ CRITICAL: Preserve logical ID - has GitHub connection
     // ============================================
     this.app = new amplify.App(this, 'App', {
-      appName: 'yourpace',
+      appName: 'yourpace', // ⚠️ DO NOT CHANGE - will cause recreation
       description: 'YourPace fitness tracking application',
       platform: amplify.Platform.WEB,
       autoBranchDeletion: true,
       role: serviceRole,
-      sourceCodeProvider: new amplify.GitHubSourceCodeProvider({
-        owner: props.githubOwner,
-        repository: props.githubRepo,
-        oauthToken: cdk.SecretValue.unsafePlainText(props.githubToken),
-      }),
       buildSpec: codebuild.BuildSpec.fromObjectToYaml({
         version: '1.0',
         applications: [{
@@ -87,32 +82,38 @@ export class AmplifyApp extends Construct {
       }),
       environmentVariables: { NEXT_PUBLIC_ENVIRONMENT: 'production' },
     });
+    // ⚠️ CRITICAL: Preserve original logical ID - has GitHub connection
+    (this.app.node.defaultChild as cdk.CfnResource).overrideLogicalId('YourPaceAppB7D301D9');
 
     // ============================================
     // Branch Configurations
+    // ⚠️ CRITICAL: Preserve original logical IDs for branches
     // ============================================
-    // Auto-build is enabled since GitHub is now connected
-    
+    // NOTE: autoBuild is disabled because GitHub OAuth is broken for CDK-created apps.
+    // Builds are triggered via webhook from GitHub Actions CI workflow instead.
     const mainBranch = this.app.addBranch('main', {
       branchName: 'main',
       stage: 'PRODUCTION',
-      autoBuild: true,
+      autoBuild: false,
       environmentVariables: { NEXT_PUBLIC_ENVIRONMENT: 'production' },
     });
+    (mainBranch.node.defaultChild as cdk.CfnResource).overrideLogicalId('YourPaceAppmainA894DEC7');
 
     const stagingBranch = this.app.addBranch('staging', {
       branchName: 'staging',
       stage: 'BETA',
-      autoBuild: true,
+      autoBuild: false,
       environmentVariables: { NEXT_PUBLIC_ENVIRONMENT: 'staging' },
     });
+    (stagingBranch.node.defaultChild as cdk.CfnResource).overrideLogicalId('YourPaceAppstagingC0A42FD8');
 
     const developBranch = this.app.addBranch('develop', {
       branchName: 'develop',
       stage: 'DEVELOPMENT',
-      autoBuild: true,
+      autoBuild: false,
       environmentVariables: { NEXT_PUBLIC_ENVIRONMENT: 'development' },
     });
+    (developBranch.node.defaultChild as cdk.CfnResource).overrideLogicalId('YourPaceAppdevelop1517C8C6');
 
     // Expose useful properties
     this.defaultDomain = this.app.defaultDomain;
