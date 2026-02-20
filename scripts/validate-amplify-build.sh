@@ -26,13 +26,13 @@ echo "📋 Parsing amplify.yml..."
 echo ""
 
 # Extract all $VARIABLE references from amplify.yml
-VARIABLES=$(grep -oE '\$[A-Z_]+' amplify.yml | sort -u | sed 's/\$//')
+VARIABLES=$(grep -oE '\$[A-Z][A-Z0-9_]+' amplify.yml | sort -u | sed 's/\$//')
 
 # Get branch-specific variables
-BRANCH_VARIABLES=$(grep -A 10 "branches:" amplify.yml | grep -oE '\$[A-Z_]+' | sort -u | sed 's/\$//')
+BRANCH_VARIABLES=$(grep -A 10 "branches:" amplify.yml | grep -oE '\$[A-Z][A-Z0-9_]+' | sort -u | sed 's/\$//')
 
-# Combine all variables
-ALL_VARIABLES=$(echo -e "$VARIABLES\n$BRANCH_VARIABLES" | sort -u)
+# Combine all variables and filter out empty lines
+ALL_VARIABLES=$(echo -e "$VARIABLES\n$BRANCH_VARIABLES" | sort -u | grep -v '^$')
 
 echo "🔧 Variables referenced in amplify.yml:"
 echo "$ALL_VARIABLES" | while read var; do
