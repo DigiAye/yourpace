@@ -69,8 +69,8 @@ jobs:
         run: |
           echo "🔍 Checking for destructive changes..."
 
-          # Build CDK args with all required context
-          CDK_ARGS="-c env=prod -c domainName=$DOMAIN_NAME -c hostedZoneId=${{ secrets.HOSTED_ZONE_ID }}"
+          # Build CDK args with all required context (including account for safety)
+          CDK_ARGS="-c account=${{ env.AWS_ACCOUNT_ID }} -c env=prod -c domainName=$DOMAIN_NAME -c hostedZoneId=${{ secrets.HOSTED_ZONE_ID }}"
 
           DIFF_OUTPUT=$(npx cdk diff --all $CDK_ARGS 2>&1) || true
           echo "$DIFF_OUTPUT"
@@ -110,8 +110,8 @@ jobs:
         run: |
           echo "🚀 Deploying CDK infrastructure (PROD)..."
 
-          # Build CDK args with all required context
-          CDK_ARGS="-c env=prod -c domainName=$DOMAIN_NAME -c hostedZoneId=${{ secrets.HOSTED_ZONE_ID }}"
+          # Build CDK args with all required context (including account for safety)
+          CDK_ARGS="-c account=${{ env.AWS_ACCOUNT_ID }} -c env=prod -c domainName=$DOMAIN_NAME -c hostedZoneId=${{ secrets.HOSTED_ZONE_ID }}"
 
           npx cdk deploy --all \
             --require-approval never \
