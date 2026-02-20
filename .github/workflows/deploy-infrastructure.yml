@@ -48,6 +48,10 @@ jobs:
         working-directory: infrastructure
         run: npm ci
 
+      - name: Build frontend
+        working-directory: frontend
+        run: npm ci && npm run build
+
       - name: Build infrastructure
         working-directory: infrastructure
         run: npm run build
