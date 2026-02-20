@@ -113,11 +113,29 @@ if (domainName) {
 // Main Infrastructure Stack (eu-west-1)
 // ============================================
 // SAFETY: Stack name matches existing deployment
+// Certificate handling: Only use if BOTH domain AND certificate exist
+// This prevents CloudFront from failing if certificate isn't ready
+let certificate: acm.ICertificate | undefined;
+if (domainName && certificateStack) {
+  try {
+    // Import the certificate from CertificateStack by ARN
+    certificate = acm.Certificate.fromCertificateArn(
+      app,
+      'ImportedCertificate',
+      certificateStack.certificate.certificateArn
+    );
+    console.log(`✅ Certificate imported: ${certificateStack.certificate.certificateArn}`);
+  } catch (e) {
+    console.log(`⚠️  Could not import certificate, CloudFront will deploy without custom domain`);
+    certificate = undefined;
+  }
+}
+
 const mainStack = new YourPaceStack(app, expectedStackName, {
   environment: env,
-  domainName,
-  hostedZoneId,
-  certificate: certificateStack?.certificate,
+  domainName: certificate ? domainName : undefined, // Only use domain if certificate is available
+  hostedZoneId: certificate ? hostedZoneId : undefined,
+  certificate,
 } as any);
 
 // Add explicit dependency: YourPaceStack must wait for CertificateStack
@@ -126,7 +144,7 @@ if (certificateStack) {
 }
 
 console.log('✅ YourPaceStack will be deployed/updated');
-if (domainName) {
+if (certificate && domainName) {
   console.log(`   Domain: ${domainName}`);
 }
 
