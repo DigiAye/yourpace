@@ -153,16 +153,22 @@ jobs:
           echo "   App ID: $AMPLIFY_APP_ID"
 
           # Start a new Amplify build job
-          JOB_ID=$(aws amplify start-job \
+          set +e
+          JOB_OUTPUT=$(aws amplify start-job \
             --app-id "$AMPLIFY_APP_ID" \
             --branch-name "$AMPLIFY_BRANCH" \
             --job-type RELEASE \
             --region "$AWS_REGION" \
             --query 'jobSummary.jobId' \
             --output text 2>&1)
+          EXIT_CODE=$?
+          set -e
 
-          if [ -z "$JOB_ID" ] || [ "$JOB_ID" = "None" ]; then
+          if [ $EXIT_CODE -ne 0 ]; then
             echo "❌ Failed to start Amplify build job"
+            echo ""
+            echo "Error output:"
+            echo "$JOB_OUTPUT"
             echo ""
             echo "Possible causes:"
             echo "  1. Amplify app does not exist (App ID: $AMPLIFY_APP_ID)"
@@ -173,6 +179,12 @@ jobs:
             echo "  1. Create the Amplify app in AWS Console"
             echo "  2. Connect the branch to the app"
             echo "  3. Update the AMPLIFY_APP_ID_* secrets with the correct app ID"
+            exit 1
+          fi
+
+          JOB_ID="$JOB_OUTPUT"
+          if [ -z "$JOB_ID" ] || [ "$JOB_ID" = "None" ]; then
+            echo "❌ Failed to start Amplify build job - no job ID returned"
             exit 1
           fi
 
