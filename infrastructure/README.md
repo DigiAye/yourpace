@@ -184,3 +184,4 @@ The Cognito magic link flow:
 
 > **Note:** SES must be verified for the sender domain before magic links work.
 > Run: `aws ses verify-email-identity --email-address noreply@yourpace.fit --profile yourpace-prod`
+# Test deployment - Fri Feb 20 11:29:45 GMT 2026
