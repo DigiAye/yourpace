@@ -2,7 +2,7 @@ import * as cdk from 'aws-cdk-lib';
 import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import * as route53 from 'aws-cdk-lib/aws-route53';
 import { Construct } from 'constructs';
-import { Network, Storage, Auth, Dns, Frontend, AmplifyApp } from './constructs';
+import { Network, Storage, Auth, Dns, Frontend, AmplifyApp, WebhookProxy } from './constructs';
 
 export interface YourPaceStackProps extends cdk.StackProps {
   readonly environment: string;
@@ -97,6 +97,17 @@ export class YourPaceStack extends cdk.Stack {
     const amplify = new AmplifyApp(this, 'Amplify', {
       region: cdk.Stack.of(this).region,
       account: cdk.Stack.of(this).account,
+    });
+
+    // ============================================
+    // 4b. Webhook Proxy (GitHub Actions → Amplify webhooks)
+    // ============================================
+    const webhookProxy = new WebhookProxy(this, 'WebhookProxy', {
+      amplifyWebhookUrls: {
+        develop: process.env.AMPLIFY_WEBHOOK_DEVELOP || '',
+        staging: process.env.AMPLIFY_WEBHOOK_STAGING || '',
+        main: process.env.AMPLIFY_WEBHOOK_MAIN || '',
+      },
     });
 
     // ============================================
