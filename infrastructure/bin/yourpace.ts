@@ -40,6 +40,10 @@ if (!['dev', 'staging', 'prod'].includes(env)) {
 const domainName = app.node.tryGetContext('domainName');
 const hostedZoneId = app.node.tryGetContext('hostedZoneId');
 
+// OPTIONAL: Certificate ARN (for CloudFront custom domain)
+// Can be provided via: -c certificateArn=<ARN> or CERTIFICATE_ARN env var
+const certificateArn = app.node.tryGetContext('certificateArn') || process.env.CERTIFICATE_ARN;
+
 // OPTIONAL: Amplify configuration (only for Amplify deployment)
 const githubOwner = app.node.tryGetContext('githubOwner');
 const githubRepo = app.node.tryGetContext('githubRepo');
