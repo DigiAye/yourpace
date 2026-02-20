@@ -56,11 +56,13 @@ export class Frontend extends Construct {
     // ============================================
     // CloudFront Distribution
     // ============================================
+    // Only use custom domain + certificate if BOTH are provided
+    // This allows safe deployments even if certificate is still validating
     const domainNames = props.domainName && props.certificate
       ? [props.domainName, `www.${props.domainName}`]
       : undefined;
 
-    this.distribution = new cloudfront.Distribution(this, 'Distribution', {
+    const distributionConfig: cloudfront.DistributionProps = {
       comment: `YourPace frontend - ${props.environment}`,
       defaultBehavior: {
         origin: cloudfrontOrigins.S3BucketOrigin.withOriginAccessControl(this.bucket as s3.Bucket),
@@ -84,10 +86,14 @@ export class Frontend extends Construct {
           ttl: cdk.Duration.seconds(0),
         },
       ],
-      domainNames,
-      certificate: props.certificate,
       priceClass: cloudfront.PriceClass.PRICE_CLASS_100, // US + Europe only (cheapest)
-    });
+      ...(domainNames && props.certificate ? {
+        domainNames,
+        certificate: props.certificate,
+      } : {}),
+    };
+
+    this.distribution = new cloudfront.Distribution(this, 'Distribution', distributionConfig);
 
     // ============================================
     // Deploy frontend build to S3
