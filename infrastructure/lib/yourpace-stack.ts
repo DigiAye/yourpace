@@ -117,9 +117,9 @@ export class YourPaceStack extends cdk.Stack {
       environment,
       domainName,
       certificate: cloudfrontCertificate,
-      amplifyDomainMain: process.env.AMPLIFY_DOMAIN_MAIN,
-      amplifyDomainStaging: process.env.AMPLIFY_DOMAIN_STAGING,
-      amplifyDomainDevelop: process.env.AMPLIFY_DOMAIN_DEVELOP,
+      amplifyDomainMain: this.node.tryGetContext('amplifyDomainMain'),
+      amplifyDomainStaging: this.node.tryGetContext('amplifyDomainStaging'),
+      amplifyDomainDevelop: this.node.tryGetContext('amplifyDomainDevelop'),
     });
 
     // ============================================
