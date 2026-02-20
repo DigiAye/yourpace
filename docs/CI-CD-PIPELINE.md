@@ -162,9 +162,20 @@ sequenceDiagram
 4. Build progress visible in Amplify console
 
 **GitHub Secrets Required:**
-- `AMPLIFY_WEBHOOK_MAIN` - Webhook URL for main branch
-- `AMPLIFY_WEBHOOK_STAGING` - Webhook URL for staging branch
-- `AMPLIFY_WEBHOOK_DEVELOP` - Webhook URL for develop branch
+- `AMPLIFY_WEBHOOK_MAIN` - Webhook URL for main branch (PRODUCTION)
+- `AMPLIFY_WEBHOOK_STAGING` - Webhook URL for staging branch (BETA)
+- `AMPLIFY_WEBHOOK_DEVELOP` - Webhook URL for develop branch (DEVELOPMENT)
+
+⚠️ **IMPORTANT:** Webhook URLs are sensitive credentials. Store them ONLY in GitHub Secrets, never commit them to the repository.
+
+To retrieve webhook URLs:
+```bash
+# List webhooks for each branch
+aws amplify list-webhooks --app-id <APP_ID> --region eu-west-1
+
+# Get specific webhook URL
+aws amplify get-webhook --webhook-id <WEBHOOK_ID> --region eu-west-1
+```
 
 **Amplify Configuration:**
 - Single Amplify app manages all three environments
