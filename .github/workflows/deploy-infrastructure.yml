@@ -138,6 +138,7 @@ jobs:
         env:
           ENVIRONMENT: ${{ needs.detect-environment.outputs.environment }}
           DOMAIN_NAME: ${{ needs.detect-environment.outputs.domain }}
+          AMPLIFY_APP_ID: ${{ secrets.AMPLIFY_APP_ID }}
         run: |
           echo "🔍 Checking for destructive changes in $ENVIRONMENT environment..."
 
@@ -195,6 +196,7 @@ jobs:
         env:
           ENVIRONMENT: ${{ needs.detect-environment.outputs.environment }}
           DOMAIN_NAME: ${{ needs.detect-environment.outputs.domain }}
+          AMPLIFY_APP_ID: ${{ secrets.AMPLIFY_APP_ID }}
         run: |
           echo "🚀 Deploying CDK infrastructure ($ENVIRONMENT)..."
 
