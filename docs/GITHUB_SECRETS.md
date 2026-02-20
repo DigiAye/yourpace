@@ -35,9 +35,10 @@ Add these secrets to your GitHub repository: Settings → Secrets and variables 
 | `COGNITO_CUSTOM_DOMAIN_NAME` | Custom Cognito domain name (e.g., auth.yourpace.cloud) |
 | `COGNITO_CLOUDFRONT_DOMAIN` | CloudFront domain for Cognito custom domain |
 
-### Amplify Webhooks (Optional)
+### Amplify
 | Secret Name | Description |
 |------------|-------------|
+| `AMPLIFY_APP_ID` | Amplify App ID (single app with multiple branches) |
 | `AMPLIFY_WEBHOOK_MAIN` | Amplify webhook for main branch |
 | `AMPLIFY_WEBHOOK_STAGING` | Amplify webhook for staging branch |
 | `AMPLIFY_WEBHOOK_DEVELOP` | Amplify webhook for develop branch |
