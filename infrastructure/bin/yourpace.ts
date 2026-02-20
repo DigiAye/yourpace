@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import * as cdk from 'aws-cdk-lib';
+import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import { YourPaceStack } from '../lib/yourpace-stack';
 import { CertificateStack } from '../lib/certificate-stack';
 import { AmplifyStack } from '../lib/amplify-stack';

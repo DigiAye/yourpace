@@ -56,8 +56,8 @@ export class Frontend extends Construct {
     // ============================================
     // CloudFront Distribution
     // ============================================
-    // Only use custom domain + certificate if BOTH are provided
-    // This allows safe deployments even if certificate is still validating
+    // Use custom domain + certificate if provided
+    // Certificate can be passed directly or imported by ARN
     const domainNames = props.domainName && props.certificate
       ? [props.domainName, `www.${props.domainName}`]
       : undefined;
