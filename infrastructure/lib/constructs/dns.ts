@@ -70,19 +70,17 @@ export class Dns extends Construct {
     }
 
     // ============================================
-    // Cognito Domain CNAME record (only for AWS-managed domains)
+    // Cognito Domain CNAME record (only for prod with custom domain)
     // ============================================
-    // For custom domains with certificates, the DNS record is not needed
-    // as the custom domain is directly configured in Cognito
-    if (props.cognitoDomainName && !props.cognitoDomainName.includes(props.domainName)) {
-      const authSubdomain = props.environment === 'prod' ? 'auth' : `auth-${props.environment}`;
-      
+    // Only create Cognito DNS record for prod environment
+    // Dev/staging use AWS-managed Cognito domains (no custom domain needed)
+    if (props.environment === 'prod' && props.cognitoDomainName && !props.cognitoDomainName.includes(props.domainName)) {
       new route53.CnameRecord(this, 'CognitoDomainRecord', {
         zone: this.hostedZone,
-        recordName: authSubdomain,
+        recordName: 'auth',
         domainName: props.cognitoDomainName,
         ttl: cdk.Duration.minutes(5),
-        comment: 'Cognito Managed Login domain',
+        comment: 'Cognito Managed Login domain (prod)',
       });
     }
 

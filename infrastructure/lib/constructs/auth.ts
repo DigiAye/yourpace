@@ -129,10 +129,11 @@ export class Auth extends Construct {
       ? `${authSubdomain}.${props.domainName}`
       : undefined;
 
-    // Configure domain — use custom domain with certificate
-    // Frontend expects: NEXT_PUBLIC_COGNITO_DOMAIN=auth.yourpace.cloud
-    if (authDomainName && props.cognitoCertificate) {
-      // Use custom domain with eu-west-1 certificate
+    // Configure domain — use custom domain ONLY for prod with certificate
+    // Dev/staging use AWS-managed domains
+    // Frontend expects: NEXT_PUBLIC_COGNITO_DOMAIN=auth.yourpace.cloud (prod only)
+    if (props.environment === 'prod' && authDomainName && props.cognitoCertificate) {
+      // Use custom domain with eu-west-1 certificate (prod only)
       this.userPoolDomain = this.userPool.addDomain('Domain', {
         customDomain: {
           domainName: authDomainName,
@@ -141,9 +142,9 @@ export class Auth extends Construct {
       });
       this.authDomain = authDomainName;
       this.cognitoDomainName = authDomainName;
-      console.log(`✅ Cognito custom domain: ${authDomainName}`);
+      console.log(`✅ Cognito custom domain (prod): ${authDomainName}`);
     } else {
-      // Fallback to AWS-managed domain if no custom domain/certificate
+      // AWS-managed domain for dev/staging
       const domainPrefix = `yourpace-auth-${props.environment}`;
       this.userPoolDomain = this.userPool.addDomain('Domain', {
         cognitoDomain: {
@@ -152,7 +153,7 @@ export class Auth extends Construct {
       });
       this.authDomain = `${domainPrefix}.auth.eu-west-1.amazoncognito.com`;
       this.cognitoDomainName = this.authDomain;
-      console.log(`✅ Cognito AWS-managed domain: ${this.authDomain}`);
+      console.log(`✅ Cognito AWS-managed domain (${props.environment}): ${this.authDomain}`);
     }
 
     this.userPoolId = this.userPool.userPoolId;

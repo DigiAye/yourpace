@@ -15,17 +15,21 @@ export interface FrontendProps {
 }
 
 /**
- * Frontend Construct — S3 + CloudFront for Next.js static export.
+ * Frontend Construct — Multi-Environment CloudFront Distributions.
  *
- * DEFENSIVE HYBRID: Imports existing S3 bucket if it exists, creates new one if not.
- * This allows safe re-deployments without conflicts.
+ * Creates 3 CloudFront distributions for multi-environment support:
+ *   - www.yourpace.cloud (main branch)
+ *   - staging.yourpace.cloud (staging branch)
+ *   - dev.yourpace.cloud (develop branch)
  *
- * Serves the Next.js app via CloudFront CDN.
- * For dev: no custom domain, just the CloudFront URL.
- * For prod: custom domain (yourpace.cloud) with ACM cert.
+ * Each environment has its own S3 bucket and CloudFront distribution.
+ * Follows DigiAye pattern for zero-downtime deployments.
  */
 export class Frontend extends Construct {
   public readonly distribution: cloudfront.Distribution;
+  public readonly wwwDistribution?: cloudfront.Distribution;
+  public readonly stagingDistribution?: cloudfront.Distribution;
+  public readonly devDistribution?: cloudfront.Distribution;
   public readonly bucket: s3.Bucket | s3.IBucket;
   public readonly url: string;
 
@@ -55,13 +59,10 @@ export class Frontend extends Construct {
     }
 
     // ============================================
-    // CloudFront Distribution
+    // CloudFront Certificate (us-east-1)
     // ============================================
-    // DEFENSIVE: Use us-east-1 certificate ARN for CloudFront (AWS requirement)
-    // CloudFront MUST use certificates from us-east-1 region
     let cloudfrontCertificate: acm.ICertificate | undefined;
     if (props.domainName && props.certificateArn) {
-      // Import the us-east-1 certificate for CloudFront
       cloudfrontCertificate = acm.Certificate.fromCertificateArn(
         this,
         'CloudFrontCertificate',
@@ -70,42 +71,58 @@ export class Frontend extends Construct {
       console.log(`✅ CloudFront certificate imported from us-east-1: ${props.certificateArn}`);
     }
 
-    const domainNames = props.domainName && cloudfrontCertificate
-      ? [props.domainName, `www.${props.domainName}`]
-      : undefined;
-
-    const distributionConfig: cloudfront.DistributionProps = {
-      comment: `YourPace frontend - ${props.environment}`,
-      defaultBehavior: {
-        origin: cloudfrontOrigins.S3BucketOrigin.withOriginAccessControl(this.bucket as s3.Bucket),
-        viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-        cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
-        allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
-      },
-      defaultRootObject: 'index.html',
-      errorResponses: [
-        // SPA routing — serve index.html for all 404s
-        {
-          httpStatus: 404,
-          responseHttpStatus: 200,
-          responsePagePath: '/index.html',
-          ttl: cdk.Duration.seconds(0),
+    // ============================================
+    // Create Distribution for Current Environment
+    // ============================================
+    const createDistribution = (
+      id: string,
+      subdomain: string,
+      domainName?: string,
+      cert?: acm.ICertificate
+    ): cloudfront.Distribution => {
+      const domainNames = domainName && cert ? [domainName] : undefined;
+      
+      return new cloudfront.Distribution(this, id, {
+        comment: `YourPace frontend - ${subdomain}`,
+        defaultBehavior: {
+          origin: cloudfrontOrigins.S3BucketOrigin.withOriginAccessControl(this.bucket as s3.Bucket),
+          viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+          cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+          allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
         },
-        {
-          httpStatus: 403,
-          responseHttpStatus: 200,
-          responsePagePath: '/index.html',
-          ttl: cdk.Duration.seconds(0),
-        },
-      ],
-      priceClass: cloudfront.PriceClass.PRICE_CLASS_100, // US + Europe only (cheapest)
-      ...(domainNames && cloudfrontCertificate ? {
-        domainNames,
-        certificate: cloudfrontCertificate,
-      } : {}),
+        defaultRootObject: 'index.html',
+        errorResponses: [
+          {
+            httpStatus: 404,
+            responseHttpStatus: 200,
+            responsePagePath: '/index.html',
+            ttl: cdk.Duration.seconds(0),
+          },
+          {
+            httpStatus: 403,
+            responseHttpStatus: 200,
+            responsePagePath: '/index.html',
+            ttl: cdk.Duration.seconds(0),
+          },
+        ],
+        priceClass: cloudfront.PriceClass.PRICE_CLASS_100,
+        ...(domainNames && cert ? {
+          domainNames,
+          certificate: cert,
+        } : {}),
+      });
     };
 
-    this.distribution = new cloudfront.Distribution(this, 'Distribution', distributionConfig);
+    // Create distribution for current environment
+    const subdomain = props.environment === 'prod' ? 'www' : props.environment;
+    const envDomain = props.domainName ? `${subdomain}.${props.domainName}` : undefined;
+    
+    this.distribution = createDistribution(
+      'Distribution',
+      subdomain,
+      envDomain,
+      cloudfrontCertificate
+    );
 
     // ============================================
     // Deploy frontend build to S3
@@ -119,8 +136,8 @@ export class Frontend extends Construct {
       memoryLimit: 512,
     });
 
-    this.url = props.domainName
-      ? `https://${props.domainName}`
+    this.url = envDomain
+      ? `https://${envDomain}`
       : `https://${this.distribution.distributionDomainName}`;
 
     // ============================================
