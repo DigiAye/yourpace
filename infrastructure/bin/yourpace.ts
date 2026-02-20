@@ -14,6 +14,11 @@ const env = app.node.tryGetContext('env') || 'dev'; // dev | staging | prod
 const domainName = app.node.tryGetContext('domainName'); // e.g. yourpace.cloud
 const hostedZoneId = app.node.tryGetContext('hostedZoneId'); // e.g. Z02794812UW0G2U4GTHPL
 
+// ⚠️ CRITICAL: Amplify app name - DO NOT CHANGE without understanding the impact
+// Changing this will cause the Amplify app to be recreated, losing all build history
+// This should be set via CDK context or environment variable, not hardcoded
+const amplifyAppName = app.node.tryGetContext('amplifyAppName') || process.env.AMPLIFY_APP_NAME || 'yourpace';
+
 // Validate required configuration
 if (!account) {
   throw new Error(
@@ -26,6 +31,13 @@ if (!account) {
 
 if (!['dev', 'staging', 'prod'].includes(env)) {
   throw new Error(`Invalid env "${env}". Must be one of: dev, staging, prod`);
+}
+
+// ⚠️ SAFEGUARD: Warn if changing Amplify app name
+if (amplifyAppName !== 'yourpace') {
+  console.warn('\n⚠️  WARNING: Amplify app name is not "yourpace"');
+  console.warn('   Changing this will cause the Amplify app to be RECREATED');
+  console.warn('   This will result in loss of build history and domain changes\n');
 }
 
 // ============================================
