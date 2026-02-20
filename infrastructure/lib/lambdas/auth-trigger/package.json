@@ -1,0 +1,9 @@
+{
+  "name": "yourpace-auth-trigger",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.994.0",
+    "@aws-sdk/client-ses": "^3.0.0"
+  }
+}

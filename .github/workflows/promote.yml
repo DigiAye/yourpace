@@ -1,0 +1,104 @@
+name: Promote
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Promotion target'
+        required: true
+        type: choice
+        options:
+          - 'develop → staging'
+          - 'staging → production'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  create-promotion-pr:
+    name: Create Promotion PR
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set promotion variables
+        id: vars
+        run: |
+          if [ "${{ github.event.inputs.target }}" == "develop → staging" ]; then
+            echo "source=develop" >> $GITHUB_OUTPUT
+            echo "target=staging" >> $GITHUB_OUTPUT
+            echo "title=🚀 Promote develop → staging" >> $GITHUB_OUTPUT
+          else
+            echo "source=staging" >> $GITHUB_OUTPUT
+            echo "target=main" >> $GITHUB_OUTPUT
+            echo "title=🚀 Promote staging → production" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Get changes summary
+        id: changes
+        run: |
+          SOURCE="${{ steps.vars.outputs.source }}"
+          TARGET="${{ steps.vars.outputs.target }}"
+
+          COMMIT_COUNT=$(git rev-list --count origin/$TARGET..origin/$SOURCE)
+          COMMITS=$(git log origin/$TARGET..origin/$SOURCE --oneline --no-decorate)
+          FILES=$(git diff origin/$TARGET..origin/$SOURCE --stat)
+
+          # Store in environment files for multiline support
+          echo "COMMIT_COUNT=$COMMIT_COUNT" >> $GITHUB_OUTPUT
+
+          # Create body content
+          {
+            echo 'BODY<<EOF'
+            echo "## 📋 Promotion Summary"
+            echo ""
+            echo "**Promoting:** \`$SOURCE\` → \`$TARGET\`"
+            echo "**Commits:** $COMMIT_COUNT"
+            echo ""
+            echo "### Commits included:"
+            echo '```'
+            echo "$COMMITS"
+            echo '```'
+            echo ""
+            echo "### Files changed:"
+            echo '```'
+            echo "$FILES"
+            echo '```'
+            echo ""
+            echo "---"
+            echo "After merging, Amplify will automatically build and deploy."
+            echo 'EOF'
+          } >> $GITHUB_OUTPUT
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: promote/${{ steps.vars.outputs.source }}-to-${{ steps.vars.outputs.target }}
+          base: ${{ steps.vars.outputs.target }}
+          title: ${{ steps.vars.outputs.title }}
+          body: ${{ steps.changes.outputs.BODY }}
+          labels: promotion,automated
+          delete-branch: true
+
+      - name: Summary
+        run: |
+          echo "## ✅ Promotion PR Created!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "A pull request has been created to promote **${{ steps.vars.outputs.source }}** → **${{ steps.vars.outputs.target }}**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Next steps:**" >> $GITHUB_STEP_SUMMARY
+          echo "1. Review the PR" >> $GITHUB_STEP_SUMMARY
+          echo "2. Request review if needed" >> $GITHUB_STEP_SUMMARY
+          echo "3. Approve and merge" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | URL |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------------|-----|" >> $GITHUB_STEP_SUMMARY
+          echo "| Development | https://dev.yourpace.cloud |" >> $GITHUB_STEP_SUMMARY
+          echo "| Staging | https://staging.yourpace.cloud |" >> $GITHUB_STEP_SUMMARY
+          echo "| Production | https://yourpace.cloud |" >> $GITHUB_STEP_SUMMARY

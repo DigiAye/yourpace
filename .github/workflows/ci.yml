@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - staging
+      - develop
+  pull_request:
+    branches:
+      - main
+      - staging
+      - develop
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: CI Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Lint
+        working-directory: frontend
+        run: npm run lint || true
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+  # Trigger Amplify build via webhook
+  trigger-amplify-build:
+    name: Trigger Amplify Build
+    runs-on: ubuntu-latest
+    needs: [ci]
+    if: github.event_name == 'push'
+
+    steps:
+      - name: Trigger Amplify Build
+        run: |
+          # Determine which branch webhook to trigger
+          BRANCH="${GITHUB_REF#refs/heads/}"
+          echo "🚀 Triggering Amplify build for branch: $BRANCH"
+
+          case "$BRANCH" in
+            main)
+              WEBHOOK_URL="${{ secrets.AMPLIFY_WEBHOOK_MAIN }}"
+              ;;
+            staging)
+              WEBHOOK_URL="${{ secrets.AMPLIFY_WEBHOOK_STAGING }}"
+              ;;
+            develop)
+              WEBHOOK_URL="${{ secrets.AMPLIFY_WEBHOOK_DEVELOP }}"
+              ;;
+            *)
+              echo "⏭️ No Amplify webhook configured for branch: $BRANCH"
+              exit 0
+              ;;
+          esac
+
+          if [ -z "$WEBHOOK_URL" ]; then
+            echo "⚠️ Webhook secret not set for branch: $BRANCH"
+            echo "   Add AMPLIFY_WEBHOOK_${BRANCH^^} to GitHub secrets"
+            exit 0
+          fi
+
+          # Trigger the webhook
+          HTTP_STATUS=$(curl -s -o /tmp/webhook_response.json -w "%{http_code}" \
+            -X POST "$WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d '{}')
+
+          # Accept 200 (OK) or 202 (Accepted) as success
+          if [ "$HTTP_STATUS" = "200" ] || [ "$HTTP_STATUS" = "202" ]; then
+            echo "✅ Amplify build triggered successfully (HTTP $HTTP_STATUS)"
+            cat /tmp/webhook_response.json
+          else
+            echo "❌ Failed to trigger Amplify build (HTTP $HTTP_STATUS)"
+            cat /tmp/webhook_response.json
+            exit 1
+          fi
