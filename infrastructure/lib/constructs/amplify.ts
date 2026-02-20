@@ -20,9 +20,6 @@ export interface AmplifyAppProps {
 /**
  * Creates the Amplify application with service role, build configuration,
  * and branch deployments (main, staging, develop).
- * 
- * NOTE: GitHub OAuth is disabled because CDK-created apps have issues with GitHub connection.
- * Builds are triggered via webhook from GitHub Actions CI workflow instead.
  */
 export class AmplifyApp extends Construct {
   /** The Amplify App instance */
