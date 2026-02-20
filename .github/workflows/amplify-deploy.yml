@@ -48,6 +48,10 @@ jobs:
           role-session-name: github-actions-amplify-${{ github.run_id }}
 
       - name: Deploy to Amplify
+        env:
+          AMPLIFY_APP_ID_DEVELOP: ${{ secrets.AMPLIFY_APP_ID_DEVELOP }}
+          AMPLIFY_APP_ID_STAGING: ${{ secrets.AMPLIFY_APP_ID_STAGING }}
+          AMPLIFY_APP_ID_MAIN: ${{ secrets.AMPLIFY_APP_ID_MAIN }}
         run: |
           # Determine which app to deploy to
           BRANCH="${GITHUB_REF#refs/heads/}"
@@ -55,13 +59,13 @@ jobs:
 
           case "$BRANCH" in
             develop)
-              APP_ID="d3d51v4cu3p2qj"
+              APP_ID="$AMPLIFY_APP_ID_DEVELOP"
               ;;
             staging)
-              APP_ID="d181ddjgsi9pao"
+              APP_ID="$AMPLIFY_APP_ID_STAGING"
               ;;
             main)
-              APP_ID="d31ml9ex0f4kvs"
+              APP_ID="$AMPLIFY_APP_ID_MAIN"
               ;;
             *)
               echo "⏭️ No Amplify app configured for branch: $BRANCH"
@@ -69,8 +73,13 @@ jobs:
               ;;
           esac
 
+          if [ -z "$APP_ID" ]; then
+            echo "❌ Amplify app ID not configured for branch: $BRANCH"
+            exit 1
+          fi
+
           # Create a deployment using the built artifacts
-          echo "📦 Creating Amplify deployment for app: $APP_ID"
+          echo "📦 Creating Amplify deployment for branch: $BRANCH"
 
           # Get the job ID from the latest job
           JOB_ID=$(aws amplify list-jobs \
