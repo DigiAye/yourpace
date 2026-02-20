@@ -28,9 +28,9 @@ export class Auth extends Construct {
   public readonly userPoolClient: cognito.UserPoolClient;
   public readonly userPoolId: string;
   public readonly userPoolClientId: string;
-  public readonly userPoolDomain: cognito.UserPoolDomain;
+  public readonly userPoolDomain?: cognito.UserPoolDomain; // Only for prod with custom domain
   public readonly authDomain: string;
-  public readonly cognitoDomainName: string;  // AWS-managed Cognito domain for Route53 CNAME
+  public readonly cognitoDomainName: string;  // AWS-managed or custom Cognito domain
 
   constructor(scope: Construct, id: string, props: AuthProps) {
     super(scope, id);
@@ -129,11 +129,11 @@ export class Auth extends Construct {
       ? `${authSubdomain}.${props.domainName}`
       : undefined;
 
-    // Configure domain — use custom domain ONLY for prod with certificate
-    // Dev/staging use AWS-managed domains
+    // Configure domain — ONLY for prod with custom domain
+    // Dev/staging use default AWS-managed domains (no domain resource created)
     // Frontend expects: NEXT_PUBLIC_COGNITO_DOMAIN=auth.yourpace.cloud (prod only)
     if (props.environment === 'prod' && authDomainName && props.cognitoCertificate) {
-      // Use custom domain with eu-west-1 certificate (prod only)
+      // Create custom domain with eu-west-1 certificate (prod only)
       this.userPoolDomain = this.userPool.addDomain('Domain', {
         customDomain: {
           domainName: authDomainName,
@@ -144,16 +144,12 @@ export class Auth extends Construct {
       this.cognitoDomainName = authDomainName;
       console.log(`✅ Cognito custom domain (prod): ${authDomainName}`);
     } else {
-      // AWS-managed domain for dev/staging
-      const domainPrefix = `yourpace-auth-${props.environment}`;
-      this.userPoolDomain = this.userPool.addDomain('Domain', {
-        cognitoDomain: {
-          domainPrefix,
-        },
-      });
+      // Dev/staging: Use default AWS-managed domain (no domain resource)
+      // Cognito automatically provides: yourpace-{env}.auth.eu-west-1.amazoncognito.com
+      const domainPrefix = `yourpace-${props.environment}`;
       this.authDomain = `${domainPrefix}.auth.eu-west-1.amazoncognito.com`;
       this.cognitoDomainName = this.authDomain;
-      console.log(`✅ Cognito AWS-managed domain (${props.environment}): ${this.authDomain}`);
+      console.log(`✅ Cognito default domain (${props.environment}): ${this.authDomain}`);
     }
 
     this.userPoolId = this.userPool.userPoolId;
