@@ -8,3 +8,4 @@ export default function Home() {
 # Test webhook trigger
 # Final test
 # Webhook test with new app
+# Test build trigger
