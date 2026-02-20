@@ -159,10 +159,20 @@ jobs:
             --job-type RELEASE \
             --region "$AWS_REGION" \
             --query 'jobSummary.jobId' \
-            --output text)
+            --output text 2>&1)
 
           if [ -z "$JOB_ID" ] || [ "$JOB_ID" = "None" ]; then
             echo "❌ Failed to start Amplify build job"
+            echo ""
+            echo "Possible causes:"
+            echo "  1. Amplify app does not exist (App ID: $AMPLIFY_APP_ID)"
+            echo "  2. Branch '$AMPLIFY_BRANCH' is not connected to the app"
+            echo "  3. AWS credentials don't have permission to trigger builds"
+            echo ""
+            echo "To fix:"
+            echo "  1. Create the Amplify app in AWS Console"
+            echo "  2. Connect the branch to the app"
+            echo "  3. Update the AMPLIFY_APP_ID_* secrets with the correct app ID"
             exit 1
           fi
 
