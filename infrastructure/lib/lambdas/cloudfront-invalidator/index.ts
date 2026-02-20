@@ -1,6 +1,6 @@
-import { CloudFrontClient, CreateInvalidationCommand } from '@aws-sdk/client-cloudfront';
+const AWS = require('aws-sdk');
 
-const cloudfront = new CloudFrontClient({ region: 'us-east-1' });
+const cloudfront = new AWS.CloudFront({ region: 'us-east-1' });
 
 /**
  * Lambda function to invalidate CloudFront cache on Amplify build completion.
@@ -14,18 +14,7 @@ const cloudfront = new CloudFrontClient({ region: 'us-east-1' });
  * - DISTRIBUTION_ID_DEVELOP: CloudFront distribution ID for develop branch
  */
 
-interface AmplifyBuildEvent {
-  detail: {
-    appId: string;
-    branchName: string;
-    jobId: string;
-    jobStatus: string;
-    commitId: string;
-    commitMessage: string;
-  };
-}
-
-export const handler = async (event: AmplifyBuildEvent): Promise<void> => {
+exports.handler = async (event: any) => {
   console.log('📨 Received Amplify build event:', JSON.stringify(event, null, 2));
 
   const { appId, branchName, jobId, jobStatus, commitId, commitMessage } = event.detail;
@@ -37,7 +26,7 @@ export const handler = async (event: AmplifyBuildEvent): Promise<void> => {
   }
 
   // Map branch to distribution ID
-  let distributionId: string | undefined;
+  let distributionId;
   switch (branchName) {
     case 'main':
       distributionId = process.env.DISTRIBUTION_ID_MAIN;
@@ -66,7 +55,7 @@ export const handler = async (event: AmplifyBuildEvent): Promise<void> => {
     console.log(`   Message: ${commitMessage}`);
 
     // Create invalidation for all paths
-    const command = new CreateInvalidationCommand({
+    const params = {
       DistributionId: distributionId,
       InvalidationBatch: {
         Paths: {
@@ -75,14 +64,14 @@ export const handler = async (event: AmplifyBuildEvent): Promise<void> => {
         },
         CallerReference: `amplify-${jobId}-${Date.now()}`,
       },
-    });
+    };
 
-    const response = await cloudfront.send(command);
+    const response = await cloudfront.createInvalidation(params).promise();
 
     console.log(`✅ CloudFront cache invalidation created successfully`);
-    console.log(`   Invalidation ID: ${response.Invalidation?.Id}`);
-    console.log(`   Status: ${response.Invalidation?.Status}`);
-    console.log(`   Created: ${response.Invalidation?.CreateTime}`);
+    console.log(`   Invalidation ID: ${response.Invalidation.Id}`);
+    console.log(`   Status: ${response.Invalidation.Status}`);
+    console.log(`   Created: ${response.Invalidation.CreateTime}`);
 
   } catch (error) {
     console.error(`❌ Failed to invalidate CloudFront cache:`, error);
