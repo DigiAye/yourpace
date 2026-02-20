@@ -12,146 +12,173 @@ YourPace is a Next.js-based fitness application with:
 
 ## Architecture
 
-### Frontend Structure
-
-```mermaid
-graph TD
-    A["Next.js App"] --> B["App Directory"]
-    B --> C["Auth Routes"]
-    B --> D["Protected Routes"]
-    B --> E["Public Routes"]
-    
-    C --> C1["signin"]
-    C --> C2["signup"]
-    C --> C3["auth/callback"]
-    
-    D --> D1["dashboard"]
-    D --> D2["workouts"]
-    D --> D3["goals"]
-    D --> D4["profile"]
-    
-    E --> E1["home"]
-    
-    A --> F["Components"]
-    F --> F1["UI Components"]
-    F --> F2["Auth Provider"]
-    
-    A --> G["Libraries"]
-    G --> G1["Auth Utils"]
-    G --> G2["API Client"]
-    G --> G3["Utilities"]
-```
-
-### Infrastructure Architecture
+### Multi-Environment Infrastructure
 
 ```mermaid
 graph TB
-    subgraph "AWS Account"
+    subgraph "AWS Account (eu-west-1)"
         subgraph "Cognito"
-            Auth["User Pool<br/>Managed Login"]
+            Auth["User Pool<br/>(Managed Login)"]
+            AuthDomain["Auth Domain<br/>(AWS-managed)"]
+            CustomAuth["Custom Domain<br/>auth.yourpace.cloud<br/>(Production Only)"]
         end
         
-        subgraph "Frontend"
-            S3["S3 Bucket<br/>Static Files"]
-            CF["CloudFront<br/>CDN"]
-            Route53["Route53<br/>DNS"]
+        subgraph "Frontend - Production"
+            S3Prod["S3 Bucket<br/>(Static Files)"]
+            CFProd["CloudFront<br/>(CDN)"]
+            Route53["Route53<br/>(DNS)"]
         end
         
-        subgraph "Backend"
-            API["API Gateway<br/>HTTP API"]
-            Lambda["Lambda<br/>Functions"]
+        subgraph "Frontend - Staging"
+            S3Stg["S3 Bucket<br/>(Static Files)"]
+            CFStg["CloudFront<br/>(CDN)"]
+        end
+        
+        subgraph "Frontend - Dev"
+            S3Dev["S3 Bucket<br/>(Static Files)"]
+            CFDev["CloudFront<br/>(CDN)"]
         end
         
         subgraph "Database"
-            DDB["DynamoDB<br/>Tables"]
+            DDB["DynamoDB Tables<br/>Users, Workouts, Exercises, Goals"]
         end
         
         subgraph "Networking"
-            VPC["VPC"]
-            NAT["NAT Gateway"]
+            VPC["VPC<br/>(Network Isolation)"]
+            SG["Security Group<br/>(Lambda Access)"]
         end
     end
     
-    S3 --> CF
-    CF --> Route53
-    Auth --> API
-    API --> Lambda
-    Lambda --> DDB
-    Lambda --> VPC
-    VPC --> NAT
+    subgraph "DNS"
+        DNS1["yourpace.cloud"]
+        DNS2["www.yourpace.cloud"]
+        DNS3["staging.yourpace.cloud"]
+        DNS4["dev.yourpace.cloud"]
+        DNS5["auth.yourpace.cloud"]
+    end
+    
+    Auth --> AuthDomain
+    AuthDomain --> CustomAuth
+    
+    S3Prod --> CFProd
+    S3Stg --> CFStg
+    S3Dev --> CFDev
+    
+    CFProd --> DNS1
+    CFProd --> DNS2
+    CFStg --> DNS3
+    CFDev --> DNS4
+    CustomAuth --> DNS5
+    
+    CFProd --> DDB
+    CFStg --> DDB
+    CFDev --> DDB
+    
+    DDB --> VPC
+    VPC --> SG
 ```
 
-### CI/CD Pipeline
+### Frontend Architecture
 
 ```mermaid
-graph LR
-    subgraph "Development"
-        Dev["develop branch"]
-        DevCI["CI Workflow"]
-        DevAmp["Amplify Build"]
-        DevDeploy["dev.{DOMAIN}"]
-    end
+graph TD
+    A["Next.js App<br/>App Router"] --> B["Authentication"]
+    B --> B1["Cognito Provider"]
+    B --> B2["OAuth2 Flow"]
     
-    subgraph "Staging"
-        Stg["staging branch"]
-        StgCI["CI Workflow"]
-        StgAmp["Amplify Build"]
-        StgDeploy["staging.{DOMAIN}"]
-    end
+    A --> C["Route Groups"]
+    C --> C1["(app) - Protected"]
+    C --> C2["auth - Public"]
+    C --> C3["Root - Public"]
     
-    subgraph "Production"
-        Prod["main branch"]
-        ProdCI["CI Workflow"]
-        ProdAmp["Amplify Build"]
-        ProdInfra["Infrastructure Deploy"]
-        ProdDeploy["{DOMAIN}"]
-    end
+    C1 --> C1a["dashboard"]
+    C1 --> C1b["workouts"]
+    C1 --> C1c["goals"]
+    C1 --> C1d["profile"]
     
-    Dev --> DevCI --> DevAmp --> DevDeploy
+    C2 --> C2a["signin"]
+    C2 --> C2b["signup"]
+    C2 --> C2c["callback"]
     
-    DevDeploy -->|Promote| Stg
-    Stg --> StgCI --> StgAmp --> StgDeploy
+    A --> D["Components"]
+    D --> D1["UI Components"]
+    D --> D2["Auth Provider"]
     
-    StgDeploy -->|Promote| Prod
-    Prod --> ProdCI --> ProdAmp --> ProdDeploy
-    ProdCI --> ProdInfra
+    A --> E["Libraries"]
+    E --> E1["Auth Utils"]
+    E --> E2["API Client"]
+    E --> E3["Utilities"]
 ```
 
-### Deployment Flow
+### CI/CD Pipeline - Multi-Environment
+
+```mermaid
+graph TB
+    subgraph "GitHub"
+        Dev["develop branch"]
+        Stg["staging branch"]
+        Main["main branch"]
+    end
+    
+    subgraph "GitHub Actions"
+        DevCI["Infrastructure Deploy<br/>+ Frontend Build"]
+        StgCI["Infrastructure Deploy<br/>+ Frontend Build"]
+        ProdCI["Infrastructure Deploy<br/>+ Frontend Build"]
+    end
+    
+    subgraph "AWS Deployments"
+        DevDeploy["dev.yourpace.cloud<br/>CloudFront + S3"]
+        StgDeploy["staging.yourpace.cloud<br/>CloudFront + S3"]
+        ProdDeploy["yourpace.cloud<br/>www.yourpace.cloud<br/>auth.yourpace.cloud<br/>CloudFront + S3 + Cognito"]
+    end
+    
+    Dev -->|Push| DevCI
+    Stg -->|Push| StgCI
+    Main -->|Push| ProdCI
+    
+    DevCI -->|Deploy| DevDeploy
+    StgCI -->|Deploy| StgDeploy
+    ProdCI -->|Deploy| ProdDeploy
+    
+    DevDeploy -->|Promote| Stg
+    StgDeploy -->|Promote| Main
+```
+
+### Deployment Sequence
 
 ```mermaid
 sequenceDiagram
     participant Dev as Developer
     participant GH as GitHub
     participant GHA as GitHub Actions
-    participant Amp as Amplify
     participant AWS as AWS
+    participant CF as CloudFront
+    participant Cognito as Cognito
 
     Dev->>GH: Push to develop
-    GH->>GHA: Trigger CI Workflow
-    GHA->>GHA: Lint & Build
-    GHA->>Amp: Trigger Webhook
-    Amp->>Amp: Build & Deploy
-    Amp->>AWS: Update CloudFront
+    GH->>GHA: Trigger deploy-infrastructure.yml
+    GHA->>GHA: Build frontend & infrastructure
+    GHA->>AWS: Deploy CDK (dev environment)
+    AWS->>CF: Update CloudFront (dev)
+    CF->>CF: Invalidate cache
     
-    Note over Dev,AWS: Development Complete
+    Note over Dev,CF: Dev deployment complete
     
-    Dev->>GHA: Manual: Promote develop→staging
-    GHA->>GH: Create PR
-    Dev->>GH: Review & Merge
-    GH->>GHA: Trigger CI Workflow
-    GHA->>Amp: Trigger Webhook
-    Amp->>AWS: Deploy to staging
+    Dev->>GH: Merge develop → staging
+    GH->>GHA: Trigger deploy-infrastructure.yml
+    GHA->>AWS: Deploy CDK (staging environment)
+    AWS->>CF: Update CloudFront (staging)
     
-    Note over Dev,AWS: Staging Complete
+    Note over Dev,CF: Staging deployment complete
     
-    Dev->>GHA: Manual: Promote staging→main
-    GHA->>GH: Create PR
-    Dev->>GH: Review & Merge
-    GH->>GHA: Trigger CI + Infrastructure
-    GHA->>Amp: Trigger Webhook
-    GHA->>AWS: Deploy Infrastructure
-    Amp->>AWS: Deploy to production
+    Dev->>GH: Merge staging → main
+    GH->>GHA: Trigger deploy-infrastructure.yml
+    GHA->>AWS: Deploy CDK (prod environment)
+    AWS->>CF: Update CloudFront (prod)
+    AWS->>Cognito: Configure custom domain
+    Cognito->>Cognito: Provision auth.yourpace.cloud
+    
+    Note over Dev,Cognito: Production deployment complete
 ```
 
 ## Project Structure

@@ -1,9 +1,8 @@
 #!/usr/bin/env node
 import * as cdk from 'aws-cdk-lib';
-import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import { YourPaceStack } from '../lib/yourpace-stack';
-import { CertificateStack } from '../lib/certificate-stack';
 import { AmplifyStack } from '../lib/amplify-stack';
+import { CloudFrontCertificateStack } from '../lib/cloudfront-certificate-stack';
 
 const app = new cdk.App();
 
@@ -100,60 +99,49 @@ if (githubOwner && githubRepo && githubToken) {
 }
 
 // ============================================
-// Certificate Stack (us-east-1)
+// CloudFront Certificate Stack (us-east-1) - OPTIONAL
 // ============================================
-// ACM certificates for CloudFront MUST be in us-east-1
-// Only created when a domain name is provided
-let certificateStack: CertificateStack | undefined;
+// CloudFront REQUIRES certificates in us-east-1
+// Deploy separately if needed: npx cdk deploy YourPaceCloudFrontCertificateStack-prod --profile yourpace-prod
+// Then capture the certificate ARN and pass via: -c cloudfrontCertificateArn=<ARN>
+const deployCloudFrontCertStack = app.node.tryGetContext('deployCloudFrontCertStack') === 'true';
+let cloudfrontCertificateStack: CloudFrontCertificateStack | undefined;
 
-if (domainName) {
-  certificateStack = new CertificateStack(app, `YourPaceCertificateStack-${env}`, {
+if (deployCloudFrontCertStack && domainName && hostedZoneId) {
+  cloudfrontCertificateStack = new CloudFrontCertificateStack(app, `YourPaceCloudFrontCertificateStack-${env}`, {
+    env: {
+      account,
+      region: 'us-east-1',
+    },
     domainName,
     hostedZoneId,
-    environment: env,
-  } as any);
-  console.log('✅ CertificateStack will be deployed');
-} else {
-  console.log('⏭️  Skipping CertificateStack (domain not provided)');
+  });
+  console.log('✅ CloudFrontCertificateStack will be deployed (us-east-1)');
+  console.log('   After deployment, capture the certificate ARN and pass via:');
+  console.log('   -c cloudfrontCertificateArn=<ARN>');
+} else if (domainName && hostedZoneId) {
+  console.log('⏭️  Skipping CloudFrontCertificateStack (use -c deployCloudFrontCertStack=true to deploy)');
 }
 
 // ============================================
 // Main Infrastructure Stack (eu-west-1)
 // ============================================
-// SAFETY: Stack name matches existing deployment
-// Certificate handling: Only use if BOTH domain AND certificate exist
-// This prevents CloudFront from failing if certificate isn't ready
-let certificate: acm.ICertificate | undefined;
-if (domainName && certificateStack) {
-  try {
-    // Import the certificate from CertificateStack by ARN
-    certificate = acm.Certificate.fromCertificateArn(
-      app,
-      'ImportedCertificate',
-      certificateStack.certificate.certificateArn
-    );
-    console.log(`✅ Certificate imported: ${certificateStack.certificate.certificateArn}`);
-  } catch (e) {
-    console.log(`⚠️  Could not import certificate, CloudFront will deploy without custom domain`);
-    certificate = undefined;
-  }
-}
+// Get CloudFront certificate ARN from context (passed via -c cloudfrontCertificateArn=<ARN>)
+const cloudfrontCertificateArn = app.node.tryGetContext('cloudfrontCertificateArn') || process.env.CLOUDFRONT_CERTIFICATE_ARN;
 
 const mainStack = new YourPaceStack(app, stackName, {
+  env: {
+    account,
+    region,
+  },
   environment: env,
-  domainName: certificate ? domainName : undefined, // Only use domain if certificate is available
-  hostedZoneId: certificate ? hostedZoneId : undefined,
-  certificate,
-  certificateArn, // Pass us-east-1 certificate ARN for Cognito
+  domainName,
+  hostedZoneId,
+  cloudfrontCertificateArn,
 } as any);
 
-// Add explicit dependency: YourPaceStack must wait for CertificateStack
-if (certificateStack) {
-  (mainStack as cdk.Stack).addDependency(certificateStack as unknown as cdk.Stack);
-}
-
 console.log('✅ YourPaceStack will be deployed/updated');
-if (certificate && domainName) {
+if (domainName) {
   console.log(`   Domain: ${domainName}`);
 }
 

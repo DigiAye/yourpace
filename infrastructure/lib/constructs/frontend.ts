@@ -9,8 +9,7 @@ import { Construct } from 'constructs';
 export interface FrontendProps {
   readonly environment: string;
   readonly domainName?: string;
-  readonly certificate?: acm.ICertificate;
-  readonly certificateArn?: string; // us-east-1 certificate ARN for CloudFront
+  readonly certificate?: acm.ICertificate; // eu-west-1 certificate for CloudFront
   readonly buildPath?: string; // path to frontend/.next/standalone or out/
 }
 
@@ -39,18 +38,8 @@ export class Frontend extends Construct {
     const isProd = props.environment === 'prod';
     const removalPolicy = isProd ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY;
 
-    // ============================================
-    // CloudFront Certificate (us-east-1)
-    // ============================================
-    let cloudfrontCertificate: acm.ICertificate | undefined;
-    if (props.domainName && props.certificateArn) {
-      cloudfrontCertificate = acm.Certificate.fromCertificateArn(
-        this,
-        'CloudFrontCertificate',
-        props.certificateArn
-      );
-      console.log(`✅ CloudFront certificate imported from us-east-1: ${props.certificateArn}`);
-    }
+    // Certificate is passed directly from YourPaceStack
+    const cloudfrontCertificate = props.certificate;
 
     // ============================================
     // Create Distribution Factory

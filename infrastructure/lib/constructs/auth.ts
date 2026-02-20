@@ -120,36 +120,27 @@ export class Auth extends Construct {
     // ============================================
     // Cognito Managed Login — Custom Domain
     // ============================================
-    // Domain format: auth.yourpace.cloud (or auth-dev.yourpace.cloud for non-prod)
+    // Domain format: auth.yourpace.cloud (prod only)
+    // Dev/staging use default AWS-managed domain
     const authSubdomain = props.environment === 'prod'
       ? 'auth'
       : `auth-${props.environment}`;
 
-    const authDomainName = props.domainName
+    const authDomainName = props.domainName && props.environment === 'prod'
       ? `${authSubdomain}.${props.domainName}`
       : undefined;
 
-    // Configure domain — ONLY for prod with custom domain
-    // Dev/staging use default AWS-managed domains (no domain resource created)
-    // Frontend expects: NEXT_PUBLIC_COGNITO_DOMAIN=auth.yourpace.cloud (prod only)
-    if (props.environment === 'prod' && authDomainName && props.cognitoCertificate) {
-      // Create custom domain with eu-west-1 certificate (prod only)
-      this.userPoolDomain = this.userPool.addDomain('Domain', {
-        customDomain: {
-          domainName: authDomainName,
-          certificate: props.cognitoCertificate,
-        },
-      });
-      this.authDomain = authDomainName;
-      this.cognitoDomainName = authDomainName;
-      console.log(`✅ Cognito custom domain (prod): ${authDomainName}`);
-    } else {
-      // Dev/staging: Use default AWS-managed domain (no domain resource)
-      // Cognito automatically provides: yourpace-{env}.auth.eu-west-1.amazoncognito.com
-      const domainPrefix = `yourpace-${props.environment}`;
-      this.authDomain = `${domainPrefix}.auth.eu-west-1.amazoncognito.com`;
-      this.cognitoDomainName = this.authDomain;
-      console.log(`✅ Cognito default domain (${props.environment}): ${this.authDomain}`);
+    // Configure domain
+    // NOTE: Custom Cognito domains require DNS CNAME record to be created first
+    // For now, use default AWS-managed domain for all environments
+    // Custom domain (auth.yourpace.cloud) can be configured manually after DNS setup
+    const domainPrefix = `yourpace-${props.environment}`;
+    this.authDomain = `${domainPrefix}.auth.eu-west-1.amazoncognito.com`;
+    this.cognitoDomainName = this.authDomain;
+    console.log(`✅ Cognito default domain (${props.environment}): ${this.authDomain}`);
+    
+    if (authDomainName) {
+      console.log(`   📝 Custom domain (${authDomainName}) can be configured manually via AWS Console`);
     }
 
     this.userPoolId = this.userPool.userPoolId;

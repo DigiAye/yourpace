@@ -4,9 +4,21 @@ on:
   push:
     branches:
       - main
+      - staging
+      - develop
     paths:
       - 'infrastructure/**'
   workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'prod'
+        type: choice
+        options:
+          - prod
+          - staging
+          - dev
 
 permissions:
   id-token: write   # Required for OIDC
@@ -18,9 +30,64 @@ env:
   AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
 
 jobs:
+  detect-environment:
+    name: Detect Environment
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.detect.outputs.environment }}
+      domain: ${{ steps.detect.outputs.domain }}
+      cloudfront-dist-id: ${{ steps.detect.outputs.cloudfront-dist-id }}
+      cognito-domain: ${{ steps.detect.outputs.cognito-domain }}
+    steps:
+      - name: Detect environment from branch
+        id: detect
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            ENV="${{ github.event.inputs.environment }}"
+          else
+            case "${{ github.ref }}" in
+              refs/heads/main)
+                ENV="prod"
+                ;;
+              refs/heads/staging)
+                ENV="staging"
+                ;;
+              refs/heads/develop)
+                ENV="dev"
+                ;;
+              *)
+                ENV="dev"
+                ;;
+            esac
+          fi
+          
+          echo "environment=$ENV" >> $GITHUB_OUTPUT
+          echo "🎯 Detected environment: $ENV"
+          
+          # Set domain based on environment
+          case "$ENV" in
+            prod)
+              echo "domain=yourpace.cloud" >> $GITHUB_OUTPUT
+              echo "cloudfront-dist-id=${{ secrets.AWS_CLOUDFRONT_DISTRIBUTION_ID_PROD }}" >> $GITHUB_OUTPUT
+              echo "cognito-domain=${{ secrets.COGNITO_AUTH_DOMAIN_PROD }}" >> $GITHUB_OUTPUT
+              ;;
+            staging)
+              echo "domain=yourpace.cloud" >> $GITHUB_OUTPUT
+              echo "cloudfront-dist-id=${{ secrets.AWS_CLOUDFRONT_DISTRIBUTION_ID_STAGING }}" >> $GITHUB_OUTPUT
+              echo "cognito-domain=${{ secrets.COGNITO_AUTH_DOMAIN_STAGING }}" >> $GITHUB_OUTPUT
+              ;;
+            dev)
+              echo "domain=yourpace.cloud" >> $GITHUB_OUTPUT
+              echo "cloudfront-dist-id=${{ secrets.AWS_CLOUDFRONT_DISTRIBUTION_ID_DEV }}" >> $GITHUB_OUTPUT
+              echo "cognito-domain=${{ secrets.COGNITO_AUTH_DOMAIN_DEV }}" >> $GITHUB_OUTPUT
+              ;;
+          esac
+
   deploy:
     name: Deploy CDK Stacks
+    needs: detect-environment
     runs-on: ubuntu-latest
+    environment: ${{ needs.detect-environment.outputs.environment }}
 
     steps:
       - name: Checkout code
@@ -69,20 +136,22 @@ jobs:
         id: destructive-check
         working-directory: infrastructure
         env:
-          DOMAIN_NAME: ${{ secrets.DOMAIN_NAME }}
+          ENVIRONMENT: ${{ needs.detect-environment.outputs.environment }}
+          DOMAIN_NAME: ${{ needs.detect-environment.outputs.domain }}
         run: |
-          echo "🔍 Checking for destructive changes..."
+          echo "🔍 Checking for destructive changes in $ENVIRONMENT environment..."
 
-          # Build CDK args incrementally with all required context
+          # Build CDK args with environment-specific context
           CDK_ARGS="-c account=${{ env.AWS_ACCOUNT_ID }}"
-          CDK_ARGS="$CDK_ARGS -c env=prod"
+          CDK_ARGS="$CDK_ARGS -c env=$ENVIRONMENT"
           CDK_ARGS="$CDK_ARGS -c region=${{ env.AWS_REGION }}"
           CDK_ARGS="$CDK_ARGS -c domainName=$DOMAIN_NAME"
-          CDK_ARGS="$CDK_ARGS -c hostedZoneId=${{ secrets.HOSTED_ZONE_ID }}"
+          CDK_ARGS="$CDK_ARGS -c hostedZoneId=${{ secrets.ROUTE53_HOSTED_ZONE_ID }}"
+          CDK_ARGS="$CDK_ARGS -c cloudfrontCertificateArn=${{ secrets.CLOUDFRONT_CERTIFICATE_ARN }}"
           
-          # Add certificate ARN if available (optional - for custom domain)
-          if [ -n "${{ secrets.CERTIFICATE_ARN }}" ]; then
-            CDK_ARGS="$CDK_ARGS -c certificateArn=${{ secrets.CERTIFICATE_ARN }}"
+          # Add Cognito custom domain ARN for production only
+          if [ "$ENVIRONMENT" = "prod" ]; then
+            CDK_ARGS="$CDK_ARGS -c cognitoCertificateArn=${{ secrets.COGNITO_CUSTOM_DOMAIN_ARN }}"
           fi
 
           DIFF_OUTPUT=$(npx cdk diff --all $CDK_ARGS 2>&1) || true
@@ -104,9 +173,9 @@ jobs:
           secret: ${{ github.token }}
           approvers: joe-glasgow
           minimum-approvals: 1
-          issue-title: "⚠️ Destructive Infrastructure Changes Require Approval"
+          issue-title: "⚠️ Destructive Infrastructure Changes Require Approval (${{ needs.detect-environment.outputs.environment }})"
           issue-body: |
-            **Destructive changes were detected in the CDK infrastructure!**
+            **Destructive changes were detected in the ${{ needs.detect-environment.outputs.environment }} environment!**
 
             These changes may require DNS updates after deployment.
 
@@ -119,23 +188,25 @@ jobs:
       - name: Deploy CDK Stacks
         working-directory: infrastructure
         env:
-          DOMAIN_NAME: ${{ secrets.DOMAIN_NAME }}
+          ENVIRONMENT: ${{ needs.detect-environment.outputs.environment }}
+          DOMAIN_NAME: ${{ needs.detect-environment.outputs.domain }}
         run: |
-          echo "🚀 Deploying CDK infrastructure (PROD)..."
+          echo "🚀 Deploying CDK infrastructure ($ENVIRONMENT)..."
 
-          # Build CDK args incrementally with all required context
+          # Build CDK args with environment-specific context
           CDK_ARGS="-c account=${{ env.AWS_ACCOUNT_ID }}"
-          CDK_ARGS="$CDK_ARGS -c env=prod"
+          CDK_ARGS="$CDK_ARGS -c env=$ENVIRONMENT"
           CDK_ARGS="$CDK_ARGS -c region=${{ env.AWS_REGION }}"
           CDK_ARGS="$CDK_ARGS -c domainName=$DOMAIN_NAME"
-          CDK_ARGS="$CDK_ARGS -c hostedZoneId=${{ secrets.HOSTED_ZONE_ID }}"
+          CDK_ARGS="$CDK_ARGS -c hostedZoneId=${{ secrets.ROUTE53_HOSTED_ZONE_ID }}"
+          CDK_ARGS="$CDK_ARGS -c cloudfrontCertificateArn=${{ secrets.CLOUDFRONT_CERTIFICATE_ARN }}"
           
-          # Add certificate ARN if available (optional - for custom domain)
-          if [ -n "${{ secrets.CERTIFICATE_ARN }}" ]; then
-            CDK_ARGS="$CDK_ARGS -c certificateArn=${{ secrets.CERTIFICATE_ARN }}"
-            echo "✅ Certificate ARN provided - CloudFront will use custom domain"
+          # Add Cognito custom domain ARN for production only
+          if [ "$ENVIRONMENT" = "prod" ]; then
+            CDK_ARGS="$CDK_ARGS -c cognitoCertificateArn=${{ secrets.COGNITO_CUSTOM_DOMAIN_ARN }}"
+            echo "✅ Production environment - Cognito custom domain enabled"
           else
-            echo "⏭️  Certificate ARN not provided - CloudFront will deploy without custom domain"
+            echo "ℹ️  $ENVIRONMENT environment - Using default Cognito domain"
           fi
 
           npx cdk deploy --all \
@@ -143,5 +214,28 @@ jobs:
             --ci \
             $CDK_ARGS
 
+      - name: Verify deployment
+        env:
+          ENVIRONMENT: ${{ needs.detect-environment.outputs.environment }}
+        run: |
+          echo "✅ Verifying $ENVIRONMENT deployment..."
+          
+          case "$ENVIRONMENT" in
+            prod)
+              echo "Testing production domains..."
+              curl -s -o /dev/null -w "✓ https://yourpace.cloud: HTTP %{http_code}\n" https://yourpace.cloud
+              curl -s -o /dev/null -w "✓ https://www.yourpace.cloud: HTTP %{http_code}\n" https://www.yourpace.cloud
+              curl -s -o /dev/null -w "✓ https://auth.yourpace.cloud/login: HTTP %{http_code}\n" https://auth.yourpace.cloud/login || echo "⚠️  auth.yourpace.cloud still provisioning"
+              ;;
+            staging)
+              echo "Testing staging domain..."
+              curl -s -o /dev/null -w "✓ https://staging.yourpace.cloud: HTTP %{http_code}\n" https://staging.yourpace.cloud
+              ;;
+            dev)
+              echo "Testing dev domain..."
+              curl -s -o /dev/null -w "✓ https://dev.yourpace.cloud: HTTP %{http_code}\n" https://dev.yourpace.cloud
+              ;;
+          esac
+
       - name: Deployment complete
-        run: echo "✅ Infrastructure deployment complete!"
+        run: echo "✅ Infrastructure deployment to ${{ needs.detect-environment.outputs.environment }} complete!"

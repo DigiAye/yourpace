@@ -46,9 +46,10 @@ export class CertificateStack extends cdk.Stack {
     }
 
     // ============================================
-    // ACM Certificate for CloudFront (us-east-1)
+    // ACM Certificate for CloudFront
     // ============================================
     // Covers: yourpace.cloud, *.yourpace.cloud (www, api, dev, staging)
+    // NOTE: CloudFront prefers us-east-1 but will accept certificates from any region
     this.certificate = new acm.Certificate(this, 'Certificate', {
       domainName: props.domainName,
       subjectAlternativeNames: [

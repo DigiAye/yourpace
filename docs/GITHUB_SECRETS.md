@@ -4,16 +4,43 @@ Add these secrets to your GitHub repository: Settings → Secrets and variables 
 
 ## Required Secrets
 
+### AWS & Infrastructure
 | Secret Name | Description | Example |
 |------------|-------------|---------|
 | `AWS_ACCOUNT_ID` | Your AWS account ID | `123456789012` |
 | `AWS_REGION` | AWS region for deployments | `eu-west-1` |
+| `AWS_REGION_US_EAST_1` | US East region (for CloudFront certs) | `us-east-1` |
 | `AWS_DEPLOY_ROLE_ARN` | IAM role ARN for GitHub Actions | `arn:aws:iam::123456789012:role/github-actions-yourpace-deploy` |
-| `DOMAIN_NAME` | Your domain name | `example.com` |
+| `DOMAIN_NAME` | Your domain name | `yourpace.cloud` |
 | `HOSTED_ZONE_ID` | Route53 hosted zone ID | `Z1234567890ABC` |
-| `AMPLIFY_WEBHOOK_MAIN` | Amplify webhook for main branch | `https://webhooks.amplify.aws/...` |
-| `AMPLIFY_WEBHOOK_STAGING` | Amplify webhook for staging branch | `https://webhooks.amplify.aws/...` |
-| `AMPLIFY_WEBHOOK_DEVELOP` | Amplify webhook for develop branch | `https://webhooks.amplify.aws/...` |
+| `ROUTE53_HOSTED_ZONE_ID` | Route53 hosted zone ID (alternative) | `Z1234567890ABC` |
+
+### CloudFront & Certificates
+| Secret Name | Description |
+|------------|-------------|
+| `CLOUDFRONT_CERTIFICATE_ARN` | ACM certificate ARN (us-east-1) for CloudFront |
+| `AWS_CLOUDFRONT_DISTRIBUTION_ID_PROD` | CloudFront distribution ID (production) |
+| `AWS_CLOUDFRONT_DISTRIBUTION_ID_STAGING` | CloudFront distribution ID (staging) |
+| `AWS_CLOUDFRONT_DISTRIBUTION_ID_DEV` | CloudFront distribution ID (dev) |
+
+### Cognito Authentication
+| Secret Name | Description |
+|------------|-------------|
+| `COGNITO_USER_POOL_ID` | Cognito User Pool ID |
+| `COGNITO_USER_POOL_CLIENT_ID` | Cognito App Client ID |
+| `COGNITO_AUTH_DOMAIN_PROD` | Cognito auth domain (production) |
+| `COGNITO_AUTH_DOMAIN_STAGING` | Cognito auth domain (staging) |
+| `COGNITO_AUTH_DOMAIN_DEV` | Cognito auth domain (dev) |
+| `COGNITO_CUSTOM_DOMAIN_ARN` | ACM certificate ARN (us-east-1) for Cognito custom domain |
+| `COGNITO_CUSTOM_DOMAIN_NAME` | Custom Cognito domain name (e.g., auth.yourpace.cloud) |
+| `COGNITO_CLOUDFRONT_DOMAIN` | CloudFront domain for Cognito custom domain |
+
+### Amplify Webhooks (Optional)
+| Secret Name | Description |
+|------------|-------------|
+| `AMPLIFY_WEBHOOK_MAIN` | Amplify webhook for main branch |
+| `AMPLIFY_WEBHOOK_STAGING` | Amplify webhook for staging branch |
+| `AMPLIFY_WEBHOOK_DEVELOP` | Amplify webhook for develop branch |
 
 ## How to Add Secrets
 

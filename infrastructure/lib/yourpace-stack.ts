@@ -1,5 +1,6 @@
 import * as cdk from 'aws-cdk-lib';
 import * as acm from 'aws-cdk-lib/aws-certificatemanager';
+import * as route53 from 'aws-cdk-lib/aws-route53';
 import { Construct } from 'constructs';
 import { Network, Storage, Auth, Dns, Frontend } from './constructs';
 
@@ -7,10 +8,7 @@ export interface YourPaceStackProps extends cdk.StackProps {
   readonly environment: string;
   readonly domainName?: string;
   readonly hostedZoneId?: string;
-  readonly certificate?: acm.ICertificate; // us-east-1 certificate for CloudFront
-  readonly certificateArn?: string; // us-east-1 certificate ARN for CloudFront
-  readonly cognitoCertificate?: acm.ICertificate; // eu-west-1 certificate for Cognito
-  readonly cognitoCertificateArn?: string; // eu-west-1 certificate ARN for Cognito
+  readonly cloudfrontCertificateArn?: string; // us-east-1 certificate ARN for CloudFront
 }
 
 /**
@@ -32,11 +30,46 @@ export class YourPaceStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: YourPaceStackProps) {
     super(scope, id, props);
 
-    const { environment, domainName, hostedZoneId } = props;
+    const { environment, domainName, hostedZoneId, cloudfrontCertificateArn } = props;
 
     // Deletion protection tag for prod
     if (environment === 'prod') {
       cdk.Tags.of(this).add('TerminationProtection', 'enabled');
+    }
+
+    // ============================================
+    // 0. Certificates (if domain provided)
+    // ============================================
+    let cloudfrontCertificate: acm.ICertificate | undefined;
+    let cognitoCertificate: acm.ICertificate | undefined;
+
+    if (domainName && hostedZoneId) {
+      // Import hosted zone for DNS validation
+      const hostedZone = route53.HostedZone.fromHostedZoneAttributes(this, 'HostedZone', {
+        hostedZoneId,
+        zoneName: domainName,
+      });
+      const validation = acm.CertificateValidation.fromDns(hostedZone);
+
+      // Cognito certificate (eu-west-1 - same region as stack)
+      cognitoCertificate = new acm.Certificate(this, 'CognitoCertificate', {
+        domainName,
+        subjectAlternativeNames: [`*.${domainName}`],
+        validation,
+      });
+
+      // CloudFront certificate (us-east-1 - imported from CloudFrontCertificateStack)
+      if (cloudfrontCertificateArn) {
+        cloudfrontCertificate = acm.Certificate.fromCertificateArn(
+          this,
+          'CloudFrontCertificate',
+          cloudfrontCertificateArn
+        );
+        console.log(`✅ CloudFront certificate imported from us-east-1`);
+      } else {
+        console.log(`⚠️  CloudFront certificate ARN not provided`);
+        console.log(`    CloudFront custom domains will not be configured`);
+      }
     }
 
     // ============================================
@@ -55,10 +88,7 @@ export class YourPaceStack extends cdk.Stack {
     const auth = new Auth(this, 'Auth', { 
       environment, 
       domainName, 
-      certificate: props.certificate,
-      certificateArn: props.certificateArn,
-      cognitoCertificate: props.cognitoCertificate, // eu-west-1 certificate for Cognito custom domain
-      cognitoCertificateArn: props.cognitoCertificateArn,
+      cognitoCertificate,
     });
 
     // ============================================
@@ -67,8 +97,7 @@ export class YourPaceStack extends cdk.Stack {
     const frontend = new Frontend(this, 'Frontend', {
       environment,
       domainName,
-      certificate: props.certificate,
-      certificateArn: props.certificateArn, // us-east-1 certificate for CloudFront
+      certificate: cloudfrontCertificate,
     });
 
     // ============================================
@@ -79,8 +108,10 @@ export class YourPaceStack extends cdk.Stack {
         environment,
         domainName,
         hostedZoneId,
-        certificate: props.certificate,
-        cloudfrontDistribution: frontend.distribution,
+        certificate: cloudfrontCertificate,
+        cloudfrontDistribution: frontend.wwwDistribution,
+        stagingDistribution: frontend.stagingDistribution,
+        devDistribution: frontend.devDistribution,
         cognitoDomainName: auth.cognitoDomainName,
       });
     }

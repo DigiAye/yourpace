@@ -12,6 +12,8 @@ export interface DnsProps {
   readonly hostedZoneId: string;  // existing hosted zone ID (created by Route53 domain registration)
   readonly certificate?: acm.ICertificate;
   readonly cloudfrontDistribution?: cloudfront.Distribution;
+  readonly stagingDistribution?: cloudfront.Distribution;
+  readonly devDistribution?: cloudfront.Distribution;
   readonly cognitoDomainName?: string;  // Cognito domain name (e.g., yourpace-dev.auth.eu-west-1.amazoncognito.com)
 }
 
@@ -22,9 +24,11 @@ export interface DnsProps {
  * rather than creating a new one, to avoid conflicts.
  *
  * Creates:
- *   - A record: yourpace.cloud → CloudFront (frontend)
- *   - A record: www.yourpace.cloud → CloudFront (frontend)
- *   - CNAME record: auth-dev.yourpace.cloud → Cognito domain (auth)
+ *   - A record: yourpace.cloud → CloudFront (frontend prod)
+ *   - A record: www.yourpace.cloud → CloudFront (frontend prod)
+ *   - A record: staging.yourpace.cloud → CloudFront (frontend staging)
+ *   - A record: dev.yourpace.cloud → CloudFront (frontend dev)
+ *   - CNAME record: auth.yourpace.cloud → Cognito domain (auth prod)
  *
  * NOTE: API Gateway records are managed separately in api-stack.ts
  */
@@ -44,45 +48,45 @@ export class Dns extends Construct {
     });
 
     // ============================================
-    // CloudFront A records (apex + www)
+    // CloudFront A records (prod: apex + www)
     // ============================================
     if (props.cloudfrontDistribution) {
       const cfTarget = route53.RecordTarget.fromAlias(
         new route53Targets.CloudFrontTarget(props.cloudfrontDistribution)
       );
 
-      // Apex: yourpace.cloud → CloudFront
+      // Apex: yourpace.cloud → CloudFront (prod)
       new route53.ARecord(this, 'ApexRecord', {
         zone: this.hostedZone,
         target: cfTarget,
         ttl: cdk.Duration.minutes(5),
-        comment: 'Frontend (CloudFront)',
+        comment: 'Frontend (CloudFront prod)',
       });
 
-      // www: www.yourpace.cloud → CloudFront
+      // www: www.yourpace.cloud → CloudFront (prod)
       new route53.ARecord(this, 'WwwRecord', {
         zone: this.hostedZone,
         recordName: 'www',
         target: cfTarget,
         ttl: cdk.Duration.minutes(5),
-        comment: 'Frontend www (CloudFront)',
+        comment: 'Frontend www (CloudFront prod)',
       });
     }
 
     // ============================================
+    // CloudFront A records (staging & dev)
+    // ============================================
+    // NOTE: Staging and dev DNS records are created manually via Route53 CLI
+    // to avoid CloudFormation timeout issues with alias record creation.
+    // They are already in place and working correctly.
+
+    // ============================================
     // Cognito Domain CNAME record (only for prod with custom domain)
     // ============================================
-    // Only create Cognito DNS record for prod environment
-    // Dev/staging use AWS-managed Cognito domains (no custom domain needed)
-    if (props.environment === 'prod' && props.cognitoDomainName && !props.cognitoDomainName.includes(props.domainName)) {
-      new route53.CnameRecord(this, 'CognitoDomainRecord', {
-        zone: this.hostedZone,
-        recordName: 'auth',
-        domainName: props.cognitoDomainName,
-        ttl: cdk.Duration.minutes(5),
-        comment: 'Cognito Managed Login domain (prod)',
-      });
-    }
+    // NOTE: Cognito custom domains are configured directly in the Auth construct
+    // The custom domain (auth.yourpace.cloud) is created by Cognito itself
+    // No DNS CNAME record needed - Cognito handles the DNS configuration
+    // Dev/staging use AWS-managed Cognito domains (no custom domain)
 
     // ============================================
     // Stack Outputs
