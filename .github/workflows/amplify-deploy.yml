@@ -123,17 +123,20 @@ jobs:
         env:
           ENVIRONMENT: ${{ needs.detect-environment.outputs.environment }}
           AMPLIFY_BRANCH: ${{ needs.detect-environment.outputs.amplify-branch }}
+          AMPLIFY_APP_ID_MAIN: ${{ secrets.AMPLIFY_APP_ID_MAIN }}
+          AMPLIFY_APP_ID_STAGING: ${{ secrets.AMPLIFY_APP_ID_STAGING }}
+          AMPLIFY_APP_ID_DEVELOP: ${{ secrets.AMPLIFY_APP_ID_DEVELOP }}
         run: |
           # Select the correct AMPLIFY_APP_ID based on environment
           case "$ENVIRONMENT" in
             prod)
-              AMPLIFY_APP_ID="${{ secrets.AMPLIFY_APP_ID_MAIN }}"
+              AMPLIFY_APP_ID="$AMPLIFY_APP_ID_MAIN"
               ;;
             staging)
-              AMPLIFY_APP_ID="${{ secrets.AMPLIFY_APP_ID_STAGING }}"
+              AMPLIFY_APP_ID="$AMPLIFY_APP_ID_STAGING"
               ;;
             dev)
-              AMPLIFY_APP_ID="${{ secrets.AMPLIFY_APP_ID_DEVELOP }}"
+              AMPLIFY_APP_ID="$AMPLIFY_APP_ID_DEVELOP"
               ;;
             *)
               echo "❌ Unknown environment: $ENVIRONMENT"
