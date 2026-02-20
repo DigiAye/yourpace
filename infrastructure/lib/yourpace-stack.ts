@@ -8,6 +8,7 @@ export interface YourPaceStackProps extends cdk.StackProps {
   readonly domainName?: string;
   readonly hostedZoneId?: string;
   readonly certificate?: acm.ICertificate;
+  readonly certificateArn?: string; // us-east-1 certificate ARN for Cognito
 }
 
 /**
@@ -49,7 +50,12 @@ export class YourPaceStack extends cdk.Stack {
     // ============================================
     // 3. Auth (Cognito with Managed Login)
     // ============================================
-    const auth = new Auth(this, 'Auth', { environment, domainName, certificate: props.certificate });
+    const auth = new Auth(this, 'Auth', { 
+      environment, 
+      domainName, 
+      certificate: props.certificate,
+      certificateArn: props.certificateArn, // us-east-1 certificate for Cognito
+    });
 
     // ============================================
     // 4. Frontend (S3 + CloudFront)
@@ -58,6 +64,7 @@ export class YourPaceStack extends cdk.Stack {
       environment,
       domainName,
       certificate: props.certificate,
+      certificateArn: props.certificateArn, // us-east-1 certificate for CloudFront
     });
 
     // ============================================

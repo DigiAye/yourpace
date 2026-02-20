@@ -10,6 +10,7 @@ export interface FrontendProps {
   readonly environment: string;
   readonly domainName?: string;
   readonly certificate?: acm.ICertificate;
+  readonly certificateArn?: string; // us-east-1 certificate ARN for CloudFront
   readonly buildPath?: string; // path to frontend/.next/standalone or out/
 }
 
@@ -56,9 +57,20 @@ export class Frontend extends Construct {
     // ============================================
     // CloudFront Distribution
     // ============================================
-    // Use custom domain + certificate if provided
-    // Certificate can be passed directly or imported by ARN
-    const domainNames = props.domainName && props.certificate
+    // DEFENSIVE: Use us-east-1 certificate ARN for CloudFront (AWS requirement)
+    // CloudFront MUST use certificates from us-east-1 region
+    let cloudfrontCertificate: acm.ICertificate | undefined;
+    if (props.domainName && props.certificateArn) {
+      // Import the us-east-1 certificate for CloudFront
+      cloudfrontCertificate = acm.Certificate.fromCertificateArn(
+        this,
+        'CloudFrontCertificate',
+        props.certificateArn
+      );
+      console.log(`✅ CloudFront certificate imported from us-east-1: ${props.certificateArn}`);
+    }
+
+    const domainNames = props.domainName && cloudfrontCertificate
       ? [props.domainName, `www.${props.domainName}`]
       : undefined;
 
@@ -87,9 +99,9 @@ export class Frontend extends Construct {
         },
       ],
       priceClass: cloudfront.PriceClass.PRICE_CLASS_100, // US + Europe only (cheapest)
-      ...(domainNames && props.certificate ? {
+      ...(domainNames && cloudfrontCertificate ? {
         domainNames,
-        certificate: props.certificate,
+        certificate: cloudfrontCertificate,
       } : {}),
     };
 

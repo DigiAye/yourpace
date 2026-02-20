@@ -7,6 +7,7 @@ export interface AuthProps {
   readonly environment: string;
   readonly domainName?: string;
   readonly certificate?: acm.ICertificate;
+  readonly certificateArn?: string; // us-east-1 certificate ARN for Cognito
 }
 
 /**
@@ -127,12 +128,19 @@ export class Auth extends Construct {
       : undefined;
 
     // Configure domain based on whether we have a custom domain and certificate
-    if (authDomainName && props.certificate) {
+    // For Cognito, we need the us-east-1 certificate ARN
+    if (authDomainName && props.certificateArn) {
+      // Import the us-east-1 certificate for Cognito
+      const cognitoCertificate = acm.Certificate.fromCertificateArn(
+        this,
+        'CognitoCertificate',
+        props.certificateArn
+      );
       // Use custom domain with ACM certificate
       this.userPoolDomain = this.userPool.addDomain('Domain', {
         customDomain: {
           domainName: authDomainName,
-          certificate: props.certificate,
+          certificate: cognitoCertificate,
         },
       });
       this.authDomain = authDomainName;

@@ -140,6 +140,7 @@ const mainStack = new YourPaceStack(app, expectedStackName, {
   domainName: certificate ? domainName : undefined, // Only use domain if certificate is available
   hostedZoneId: certificate ? hostedZoneId : undefined,
   certificate,
+  certificateArn, // Pass us-east-1 certificate ARN for Cognito
 } as any);
 
 // Add explicit dependency: YourPaceStack must wait for CertificateStack
