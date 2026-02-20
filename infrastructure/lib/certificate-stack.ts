@@ -10,16 +10,20 @@ export interface CertificateStackProps extends cdk.StackProps {
 }
 
 /**
- * Certificate Stack — must be deployed in us-east-1 for CloudFront.
- * Creates a wildcard ACM certificate for the domain and all subdomains.
+ * Certificate Stack — creates certificates in BOTH us-east-1 and eu-west-1.
  *
- * Uses the existing Route53 hosted zone (created by domain registration)
- * for automatic DNS validation — no manual steps required.
+ * us-east-1: Required for CloudFront (AWS limitation)
+ * eu-west-1: Required for Cognito custom domain
+ *
+ * Both certificates cover: yourpace.cloud, *.yourpace.cloud
+ *
+ * Uses the existing Route53 hosted zone for automatic DNS validation.
  *
  * Deploy order: CertificateStack → YourPaceStack
  */
 export class CertificateStack extends cdk.Stack {
   public readonly certificate: acm.Certificate;
+  public readonly cognitoCertificate: acm.Certificate;
 
   constructor(scope: Construct, id: string, props: CertificateStackProps) {
     super(scope, id, props);
@@ -42,10 +46,23 @@ export class CertificateStack extends cdk.Stack {
     }
 
     // ============================================
-    // ACM Certificate (DNS validated)
+    // ACM Certificate for CloudFront (us-east-1)
     // ============================================
     // Covers: yourpace.cloud, *.yourpace.cloud (www, api, dev, staging)
     this.certificate = new acm.Certificate(this, 'Certificate', {
+      domainName: props.domainName,
+      subjectAlternativeNames: [
+        `*.${props.domainName}`,
+      ],
+      validation,
+    });
+
+    // ============================================
+    // ACM Certificate for Cognito (eu-west-1)
+    // ============================================
+    // Same domain coverage, but in eu-west-1 for Cognito custom domain
+    // This is a separate certificate because Cognito requires it in the same region
+    this.cognitoCertificate = new acm.Certificate(this, 'CognitoCertificate', {
       domainName: props.domainName,
       subjectAlternativeNames: [
         `*.${props.domainName}`,
@@ -60,6 +77,12 @@ export class CertificateStack extends cdk.Stack {
       value: this.certificate.certificateArn,
       description: 'ACM Certificate ARN (us-east-1) for CloudFront',
       exportName: `YourPaceCertificateArn-${props.environment}`,
+    });
+
+    new cdk.CfnOutput(this, 'CognitoCertificateArn', {
+      value: this.cognitoCertificate.certificateArn,
+      description: 'ACM Certificate ARN (eu-west-1) for Cognito',
+      exportName: `YourPaceCognitoCertificateArn-${props.environment}`,
     });
   }
 }
