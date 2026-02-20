@@ -69,11 +69,13 @@ export class Network extends Construct {
     new cdk.CfnOutput(scope, 'VpcId', {
       value: this.vpc.vpcId,
       description: 'VPC ID',
+      exportName: `YourPaceVpcId-${props.environment}`,
     });
 
     new cdk.CfnOutput(scope, 'LambdaSecurityGroupId', {
       value: this.lambdaSecurityGroup.securityGroupId,
       description: 'Lambda Security Group ID',
+      exportName: `YourPaceLambdaSecurityGroupId-${props.environment}`,
     });
   }
 }

@@ -212,6 +212,7 @@ jobs:
           npx cdk deploy --all \
             --require-approval never \
             --ci \
+            --no-change-set \
             $CDK_ARGS
 
       - name: Verify deployment
