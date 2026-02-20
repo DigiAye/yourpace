@@ -119,6 +119,11 @@ const mainStack = new YourPaceStack(app, expectedStackName, {
   certificate: certificateStack?.certificate,
 } as any);
 
+// Add explicit dependency: YourPaceStack must wait for CertificateStack
+if (certificateStack) {
+  (mainStack as cdk.Stack).addDependency(certificateStack as unknown as cdk.Stack);
+}
+
 console.log('✅ YourPaceStack will be deployed/updated');
 if (domainName) {
   console.log(`   Domain: ${domainName}`);
