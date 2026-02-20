@@ -63,15 +63,21 @@ console.log(`   Environment: ${env}\n`);
 // ============================================
 // Amplify Stack (Webhook-based builds)
 // ============================================
-// NOTE: Amplify app is managed separately via manual setup with webhooks
-// Do not deploy via CDK to avoid creating duplicate apps
-// The app is already configured with:
-// - Three branches (main, staging, develop)
-// - Webhook URLs for each branch
-// - GitHub secrets configured
-console.log('✅ Amplify app managed separately (webhook-based builds)');
-console.log('   App ID: d1g35hlmdu1711');
+const amplifyStack = new AmplifyStack(app, `YourPaceAmplifyStack-${env}`, {
+  env: {
+    account,
+    region,
+  },
+  description: `YourPace Amplify App - ${env} environment`,
+  tags: {
+    Project: 'yourpace',
+    Environment: env,
+    ManagedBy: 'cdk',
+  },
+});
+console.log('✅ Amplify Stack will be deployed (webhook-based builds)');
 console.log('   Branches: main (PRODUCTION), staging (BETA), develop (DEVELOPMENT)');
+console.log('   Next: Connect GitHub repo via Amplify Console (one-time setup)');
 
 // ============================================
 // CloudFront Certificate Stack (us-east-1) - OPTIONAL
