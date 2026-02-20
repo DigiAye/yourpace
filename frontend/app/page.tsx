@@ -4,4 +4,3 @@ import { redirect } from 'next/navigation';
 export default function Home() {
   redirect('/signin');
 }
-# Final test with new webhooks
