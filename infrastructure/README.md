@@ -186,3 +186,4 @@ The Cognito magic link flow:
 > Run: `aws ses verify-email-identity --email-address noreply@yourpace.fit --profile yourpace-prod`
 # Test deployment - Fri Feb 20 11:29:45 GMT 2026
 # Updated: Fri Feb 20 11:32:12 GMT 2026
+# Deployment triggered with certificate ARN support
