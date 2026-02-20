@@ -15,6 +15,8 @@ export interface AmplifyAppProps {
   readonly region: string;
   /** AWS account ID for SSM parameter ARNs */
   readonly account: string;
+  /** Environment variables to pass to Amplify builds */
+  readonly environmentVariables?: Record<string, string>;
 }
 
 /**
