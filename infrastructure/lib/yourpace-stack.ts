@@ -2,7 +2,7 @@ import * as cdk from 'aws-cdk-lib';
 import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import * as route53 from 'aws-cdk-lib/aws-route53';
 import { Construct } from 'constructs';
-import { Network, Storage, Auth, Dns, Frontend } from './constructs';
+import { Network, Storage, Auth, Dns, Frontend, AmplifyApp } from './constructs';
 
 export interface YourPaceStackProps extends cdk.StackProps {
   readonly environment: string;
@@ -92,7 +92,15 @@ export class YourPaceStack extends cdk.Stack {
     });
 
     // ============================================
-    // 4. Frontend (S3 + CloudFront)
+    // 4. Amplify (Frontend deployment with webhook-based builds)
+    // ============================================
+    const amplify = new AmplifyApp(this, 'Amplify', {
+      region: cdk.Stack.of(this).region,
+      account: cdk.Stack.of(this).account,
+    });
+
+    // ============================================
+    // 5. Frontend (S3 + CloudFront)
     // ============================================
     const frontend = new Frontend(this, 'Frontend', {
       environment,
@@ -101,7 +109,7 @@ export class YourPaceStack extends cdk.Stack {
     });
 
     // ============================================
-    // 5. DNS (only when domain is provided)
+    // 6. DNS (only when domain is provided)
     // ============================================
     if (domainName && hostedZoneId) {
       new Dns(this, 'Dns', {

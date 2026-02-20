@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import * as cdk from 'aws-cdk-lib';
 import { YourPaceStack } from '../lib/yourpace-stack';
-import { AmplifyStack } from '../lib/amplify-stack';
 import { CloudFrontCertificateStack } from '../lib/cloudfront-certificate-stack';
 
 const app = new cdk.App();
@@ -59,25 +58,6 @@ console.log(`\n📋 Stack Name: ${stackName}`);
 console.log(`   Account: ${account}`);
 console.log(`   Region: ${region}`);
 console.log(`   Environment: ${env}\n`);
-
-// ============================================
-// Amplify Stack (Webhook-based builds)
-// ============================================
-const amplifyStack = new AmplifyStack(app, `YourPaceAmplifyStack-${env}`, {
-  env: {
-    account,
-    region,
-  },
-  description: `YourPace Amplify App - ${env} environment`,
-  tags: {
-    Project: 'yourpace',
-    Environment: env,
-    ManagedBy: 'cdk',
-  },
-});
-console.log('✅ Amplify Stack will be deployed (webhook-based builds)');
-console.log('   Branches: main (PRODUCTION), staging (BETA), develop (DEVELOPMENT)');
-console.log('   Next: Connect GitHub repo via Amplify Console (one-time setup)');
 
 // ============================================
 // CloudFront Certificate Stack (us-east-1) - OPTIONAL
