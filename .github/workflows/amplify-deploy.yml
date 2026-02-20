@@ -49,53 +49,30 @@ jobs:
 
       - name: Deploy to Amplify
         env:
-          AMPLIFY_APP_ID_DEVELOP: ${{ secrets.AMPLIFY_APP_ID_DEVELOP }}
-          AMPLIFY_APP_ID_STAGING: ${{ secrets.AMPLIFY_APP_ID_STAGING }}
-          AMPLIFY_APP_ID_MAIN: ${{ secrets.AMPLIFY_APP_ID_MAIN }}
+          AMPLIFY_APP_ID: ${{ secrets.AMPLIFY_APP_ID }}
         run: |
-          # Determine which app to deploy to
+          # Determine which branch we're deploying
           BRANCH="${GITHUB_REF#refs/heads/}"
           echo "🚀 Deploying to Amplify for branch: $BRANCH"
 
-          case "$BRANCH" in
-            develop)
-              APP_ID="$AMPLIFY_APP_ID_DEVELOP"
-              ;;
-            staging)
-              APP_ID="$AMPLIFY_APP_ID_STAGING"
-              ;;
-            main)
-              APP_ID="$AMPLIFY_APP_ID_MAIN"
-              ;;
-            *)
-              echo "⏭️ No Amplify app configured for branch: $BRANCH"
-              exit 0
-              ;;
-          esac
+          # Validate branch
+          if [[ ! "$BRANCH" =~ ^(main|staging|develop)$ ]]; then
+            echo "⏭️ No Amplify deployment configured for branch: $BRANCH"
+            exit 0
+          fi
 
-          if [ -z "$APP_ID" ]; then
-            echo "❌ Amplify app ID not configured for branch: $BRANCH"
+          if [ -z "$AMPLIFY_APP_ID" ]; then
+            echo "❌ AMPLIFY_APP_ID secret not configured"
             exit 1
           fi
 
           # Create a deployment using the built artifacts
           echo "📦 Creating Amplify deployment for branch: $BRANCH"
 
-          # Get the job ID from the latest job
-          JOB_ID=$(aws amplify list-jobs \
-            --app-id "$APP_ID" \
+          # Start a new job by creating/updating the branch
+          aws amplify create-branch \
+            --app-id "$AMPLIFY_APP_ID" \
             --branch-name "$BRANCH" \
-            --region "$AWS_REGION" \
-            --query 'jobSummaries[0].jobId' \
-            --output text 2>/dev/null || echo "")
-
-          if [ -z "$JOB_ID" ] || [ "$JOB_ID" = "None" ]; then
-            echo "ℹ️ No previous job found, creating new deployment"
-            # Start a new job by creating a branch if it doesn't exist
-            aws amplify create-branch \
-              --app-id "$APP_ID" \
-              --branch-name "$BRANCH" \
-              --region "$AWS_REGION" 2>/dev/null || true
-          fi
+            --region "$AWS_REGION" 2>/dev/null || true
 
           echo "✅ Amplify deployment initiated for branch: $BRANCH"
