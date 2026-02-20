@@ -7,12 +7,16 @@ export interface NetworkProps {
 }
 
 /**
- * Network Construct — VPC with public and private subnets.
+ * Network Construct — VPC with public subnets only (NO NAT Gateways).
  *
- * dev:     NO VPC — Lambdas run without a VPC (free tier, no NAT Gateway cost ~$32/month).
- *          DynamoDB, SES, S3, API Gateway are all reachable via public AWS endpoints.
- * staging: VPC with 1 NAT Gateway
- * prod:    VPC with 2 NAT Gateways (high availability)
+ * COST OPTIMIZATION: Removed NAT Gateways to stay within free tier.
+ * - NAT Gateway costs ~$32/month + data transfer
+ * - All AWS services (DynamoDB, S3, Cognito, etc.) are reachable via public endpoints
+ * - No need for private subnets with egress for our architecture
+ *
+ * dev:     NO VPC — Lambdas run without a VPC (free tier).
+ * staging: VPC with public subnets only (no NAT Gateway)
+ * prod:    VPC with public subnets only (no NAT Gateway)
  */
 export class Network extends Construct {
   public readonly vpc: ec2.Vpc | undefined;
@@ -32,21 +36,18 @@ export class Network extends Construct {
     }
 
     // ============================================
-    // VPC — 2 AZs, public + private subnets
+    // VPC — 2 AZs, public subnets only (NO NAT Gateways)
     // ============================================
+    // COST OPTIMIZATION: Removed NAT Gateways (~$32/month each)
+    // All AWS services are reachable via public endpoints
     this.vpc = new ec2.Vpc(this, 'Vpc', {
       vpcName: `yourpace-${props.environment}`,
       maxAzs: 2,
-      natGateways: isProd ? 2 : 1,
+      natGateways: 0, // NO NAT Gateways — saves ~$32-64/month
       subnetConfiguration: [
         {
           name: 'Public',
           subnetType: ec2.SubnetType.PUBLIC,
-          cidrMask: 24,
-        },
-        {
-          name: 'Private',
-          subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
           cidrMask: 24,
         },
       ],
