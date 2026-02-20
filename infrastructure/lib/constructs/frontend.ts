@@ -16,13 +16,16 @@ export interface FrontendProps {
 /**
  * Frontend Construct — S3 + CloudFront for Next.js static export.
  *
+ * DEFENSIVE HYBRID: Imports existing S3 bucket if it exists, creates new one if not.
+ * This allows safe re-deployments without conflicts.
+ *
  * Serves the Next.js app via CloudFront CDN.
  * For dev: no custom domain, just the CloudFront URL.
  * For prod: custom domain (yourpace.cloud) with ACM cert.
  */
 export class Frontend extends Construct {
   public readonly distribution: cloudfront.Distribution;
-  public readonly bucket: s3.Bucket;
+  public readonly bucket: s3.Bucket | s3.IBucket;
   public readonly url: string;
 
   constructor(scope: Construct, id: string, props: FrontendProps) {
@@ -30,17 +33,25 @@ export class Frontend extends Construct {
 
     const isProd = props.environment === 'prod';
     const removalPolicy = isProd ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY;
+    const bucketName = `yourpace-frontend-${props.environment}`;
 
     // ============================================
     // S3 Bucket — frontend assets
+    // DEFENSIVE: Import if exists, create if not
     // ============================================
-    this.bucket = new s3.Bucket(this, 'FrontendBucket', {
-      bucketName: `yourpace-frontend-${props.environment}`,
-      removalPolicy,
-      autoDeleteObjects: !isProd,
-      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
-      encryption: s3.BucketEncryption.S3_MANAGED,
-    });
+    try {
+      this.bucket = s3.Bucket.fromBucketName(this, 'FrontendBucketImported', bucketName);
+      console.log(`✅ Imported existing S3 bucket: ${bucketName}`);
+    } catch (e) {
+      console.log(`📦 Creating new S3 bucket: ${bucketName}`);
+      this.bucket = new s3.Bucket(this, 'FrontendBucket', {
+        bucketName,
+        removalPolicy,
+        autoDeleteObjects: !isProd,
+        blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+        encryption: s3.BucketEncryption.S3_MANAGED,
+      });
+    }
 
     // ============================================
     // CloudFront Distribution
@@ -52,7 +63,7 @@ export class Frontend extends Construct {
     this.distribution = new cloudfront.Distribution(this, 'Distribution', {
       comment: `YourPace frontend - ${props.environment}`,
       defaultBehavior: {
-        origin: cloudfrontOrigins.S3BucketOrigin.withOriginAccessControl(this.bucket),
+        origin: cloudfrontOrigins.S3BucketOrigin.withOriginAccessControl(this.bucket as s3.Bucket),
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
         allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
@@ -84,7 +95,7 @@ export class Frontend extends Construct {
     const buildPath = props.buildPath || '../frontend/out';
     new s3deploy.BucketDeployment(this, 'DeployFrontend', {
       sources: [s3deploy.Source.asset(buildPath)],
-      destinationBucket: this.bucket,
+      destinationBucket: this.bucket as s3.Bucket,
       distribution: this.distribution,
       distributionPaths: ['/*'],
       memoryLimit: 512,
