@@ -8,7 +8,6 @@ on:
       - develop
     paths:
       - 'frontend/**'
-      - 'amplify.yml'
       - '.github/workflows/amplify-deploy.yml'
   workflow_dispatch:
 
@@ -16,98 +15,59 @@ permissions:
   contents: read
 
 jobs:
+  # Trigger Amplify build via webhook (workaround for GitHub OAuth connection issue)
+  # This triggers Amplify builds since the direct GitHub-Amplify integration is broken
   trigger-amplify-build:
     name: Trigger Amplify Build
     runs-on: ubuntu-latest
     if: github.event_name == 'push'
-
+    
     steps:
       - name: Trigger Amplify Build
-        env:
-          # Cognito Configuration
-          COGNITO_REGION: ${{ secrets.COGNITO_REGION }}
-          COGNITO_USER_POOL_CLIENT_ID: ${{ secrets.COGNITO_USER_POOL_CLIENT_ID }}
-          COGNITO_AUTH_DOMAIN_PROD: ${{ secrets.COGNITO_AUTH_DOMAIN_PROD }}
-          COGNITO_AUTH_DOMAIN_STAGING: ${{ secrets.COGNITO_AUTH_DOMAIN_STAGING }}
-          COGNITO_AUTH_DOMAIN_DEV: ${{ secrets.COGNITO_AUTH_DOMAIN_DEV }}
-          # Frontend Configuration
-          APP_URL: ${{ secrets.APP_URL }}
-          # AWS Configuration
-          AWS_REGION: ${{ secrets.AWS_REGION }}
-          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-          # DynamoDB Tables
-          DYNAMODB_USERS_TABLE: ${{ secrets.DYNAMODB_USERS_TABLE }}
-          DYNAMODB_WORKOUTS_TABLE: ${{ secrets.DYNAMODB_WORKOUTS_TABLE }}
-          DYNAMODB_EXERCISES_TABLE: ${{ secrets.DYNAMODB_EXERCISES_TABLE }}
-          DYNAMODB_GOALS_TABLE: ${{ secrets.DYNAMODB_GOALS_TABLE }}
-          # S3 Buckets
-          S3_ASSETS_BUCKET: ${{ secrets.S3_ASSETS_BUCKET }}
-          S3_FRONTEND_BUCKET: ${{ secrets.S3_FRONTEND_BUCKET }}
-          # VPC Configuration
-          VPC_ID: ${{ secrets.VPC_ID }}
-          LAMBDA_SECURITY_GROUP_ID: ${{ secrets.LAMBDA_SECURITY_GROUP_ID }}
-          # Route53 Configuration
-          HOSTED_ZONE_ID: ${{ secrets.HOSTED_ZONE_ID }}
-          # CloudFront Configuration
-          AWS_CLOUDFRONT_DISTRIBUTION_ID_PROD: ${{ secrets.AWS_CLOUDFRONT_DISTRIBUTION_ID_PROD }}
-          AWS_CLOUDFRONT_DISTRIBUTION_ID_STAGING: ${{ secrets.AWS_CLOUDFRONT_DISTRIBUTION_ID_STAGING }}
-          AWS_CLOUDFRONT_DISTRIBUTION_ID_DEV: ${{ secrets.AWS_CLOUDFRONT_DISTRIBUTION_ID_DEV }}
-          CLOUDFRONT_DOMAIN_PROD: ${{ secrets.CLOUDFRONT_DOMAIN_PROD }}
-          CLOUDFRONT_DOMAIN_STAGING: ${{ secrets.CLOUDFRONT_DOMAIN_STAGING }}
-          CLOUDFRONT_DOMAIN_DEV: ${{ secrets.CLOUDFRONT_DOMAIN_DEV }}
         run: |
           # Determine which branch webhook to trigger
           BRANCH="${GITHUB_REF#refs/heads/}"
           echo "🚀 Triggering Amplify build for branch: $BRANCH"
-
+          
           case "$BRANCH" in
             main)
               WEBHOOK_URL="${{ secrets.AMPLIFY_WEBHOOK_MAIN }}"
-              COGNITO_DOMAIN="$COGNITO_AUTH_DOMAIN_PROD"
-              CLOUDFRONT_DIST_ID="$AWS_CLOUDFRONT_DISTRIBUTION_ID_PROD"
-              CLOUDFRONT_DOMAIN="$CLOUDFRONT_DOMAIN_PROD"
               ;;
             staging)
               WEBHOOK_URL="${{ secrets.AMPLIFY_WEBHOOK_STAGING }}"
-              COGNITO_DOMAIN="$COGNITO_AUTH_DOMAIN_STAGING"
-              CLOUDFRONT_DIST_ID="$AWS_CLOUDFRONT_DISTRIBUTION_ID_STAGING"
-              CLOUDFRONT_DOMAIN="$CLOUDFRONT_DOMAIN_STAGING"
               ;;
             develop)
               WEBHOOK_URL="${{ secrets.AMPLIFY_WEBHOOK_DEVELOP }}"
-              COGNITO_DOMAIN="$COGNITO_AUTH_DOMAIN_DEV"
-              CLOUDFRONT_DIST_ID="$AWS_CLOUDFRONT_DISTRIBUTION_ID_DEV"
-              CLOUDFRONT_DOMAIN="$CLOUDFRONT_DOMAIN_DEV"
               ;;
             *)
               echo "⏭️ No Amplify webhook configured for branch: $BRANCH"
               exit 0
               ;;
           esac
-
+          
           if [ -z "$WEBHOOK_URL" ]; then
             echo "⚠️ Webhook secret not set for branch: $BRANCH"
             echo "   Add AMPLIFY_WEBHOOK_${BRANCH^^} to GitHub secrets"
             exit 0
           fi
-
-          # Trigger the webhook with environment variables as query parameters
-          # Note: Amplify webhooks don't support passing env vars in request body
-          # Instead, we pass them as query parameters which Amplify can access
-          WEBHOOK_WITH_PARAMS="${WEBHOOK_URL}?cognito_domain=${COGNITO_DOMAIN}&cloudfront_dist_id=${CLOUDFRONT_DIST_ID}&cloudfront_domain=${CLOUDFRONT_DOMAIN}"
           
+          # Trigger the webhook
+          # Note: Environment variables are NOT passed here
+          # Instead, Amplify buildSpec fetches secrets from AWS SSM Parameter Store
           HTTP_STATUS=$(curl -s -o /tmp/webhook_response.json -w "%{http_code}" \
-            -X POST "$WEBHOOK_WITH_PARAMS" \
+            -X POST "$WEBHOOK_URL" \
             -H "Content-Type: application/json" \
-            -d "{\"COGNITO_REGION\":\"$COGNITO_REGION\",\"COGNITO_USER_POOL_CLIENT_ID\":\"$COGNITO_USER_POOL_CLIENT_ID\",\"COGNITO_AUTH_DOMAIN\":\"$COGNITO_DOMAIN\",\"APP_URL\":\"$APP_URL\",\"AWS_REGION\":\"$AWS_REGION\",\"AWS_ACCOUNT_ID\":\"$AWS_ACCOUNT_ID\",\"DYNAMODB_USERS_TABLE\":\"$DYNAMODB_USERS_TABLE\",\"DYNAMODB_WORKOUTS_TABLE\":\"$DYNAMODB_WORKOUTS_TABLE\",\"DYNAMODB_EXERCISES_TABLE\":\"$DYNAMODB_EXERCISES_TABLE\",\"DYNAMODB_GOALS_TABLE\":\"$DYNAMODB_GOALS_TABLE\",\"S3_ASSETS_BUCKET\":\"$S3_ASSETS_BUCKET\",\"S3_FRONTEND_BUCKET\":\"$S3_FRONTEND_BUCKET\",\"VPC_ID\":\"$VPC_ID\",\"LAMBDA_SECURITY_GROUP_ID\":\"$LAMBDA_SECURITY_GROUP_ID\",\"HOSTED_ZONE_ID\":\"$HOSTED_ZONE_ID\",\"AWS_CLOUDFRONT_DISTRIBUTION_ID\":\"$CLOUDFRONT_DIST_ID\",\"NEXT_PUBLIC_CLOUDFRONT_DOMAIN\":\"$CLOUDFRONT_DOMAIN\"}")
-
+            -d '{}')
+          
           # Accept 200 (OK) or 202 (Accepted) as success
           if [ "$HTTP_STATUS" = "200" ] || [ "$HTTP_STATUS" = "202" ]; then
             echo "✅ Amplify build triggered successfully (HTTP $HTTP_STATUS)"
-            echo "📦 Environment variables passed to Amplify build"
             cat /tmp/webhook_response.json
           else
             echo "❌ Failed to trigger Amplify build (HTTP $HTTP_STATUS)"
             cat /tmp/webhook_response.json
             exit 1
           fi
+
+  # NOTE: CloudFront cache invalidation is handled automatically by the Lambda function
+  # (yourpace-cloudfront-invalidate) which is triggered by EventBridge when Amplify builds succeed.
