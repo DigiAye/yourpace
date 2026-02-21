@@ -8,7 +8,6 @@ on:
       - develop
     paths:
       - 'frontend/**'
-      - 'amplify.yml'
       - '.github/workflows/amplify-deploy.yml'
   workflow_dispatch:
 
@@ -16,18 +15,20 @@ permissions:
   contents: read
 
 jobs:
+  # Trigger Amplify build via webhook (workaround for GitHub OAuth connection issue)
+  # This triggers Amplify builds since the direct GitHub-Amplify integration is broken
   trigger-amplify-build:
     name: Trigger Amplify Build
     runs-on: ubuntu-latest
     if: github.event_name == 'push'
-
+    
     steps:
       - name: Trigger Amplify Build
         run: |
           # Determine which branch webhook to trigger
           BRANCH="${GITHUB_REF#refs/heads/}"
           echo "🚀 Triggering Amplify build for branch: $BRANCH"
-
+          
           case "$BRANCH" in
             main)
               WEBHOOK_URL="${{ secrets.AMPLIFY_WEBHOOK_MAIN }}"
@@ -43,19 +44,21 @@ jobs:
               exit 0
               ;;
           esac
-
+          
           if [ -z "$WEBHOOK_URL" ]; then
             echo "⚠️ Webhook secret not set for branch: $BRANCH"
             echo "   Add AMPLIFY_WEBHOOK_${BRANCH^^} to GitHub secrets"
             exit 0
           fi
-
+          
           # Trigger the webhook
+          # Note: Environment variables are NOT passed here
+          # Instead, Amplify buildSpec fetches secrets from AWS SSM Parameter Store
           HTTP_STATUS=$(curl -s -o /tmp/webhook_response.json -w "%{http_code}" \
             -X POST "$WEBHOOK_URL" \
             -H "Content-Type: application/json" \
             -d '{}')
-
+          
           # Accept 200 (OK) or 202 (Accepted) as success
           if [ "$HTTP_STATUS" = "200" ] || [ "$HTTP_STATUS" = "202" ]; then
             echo "✅ Amplify build triggered successfully (HTTP $HTTP_STATUS)"
@@ -65,3 +68,6 @@ jobs:
             cat /tmp/webhook_response.json
             exit 1
           fi
+
+  # NOTE: CloudFront cache invalidation is handled automatically by the Lambda function
+  # (yourpace-cloudfront-invalidate) which is triggered by EventBridge when Amplify builds succeed.
