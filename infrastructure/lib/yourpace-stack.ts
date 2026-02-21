@@ -94,9 +94,11 @@ export class YourPaceStack extends cdk.Stack {
     // ============================================
     // 4. Amplify (Frontend deployment with webhook-based builds)
     // ============================================
+    const amplifyAppId = process.env.AMPLIFY_APP_ID || 'd32w5qjq8u9hab';
     const amplify = new AmplifyApp(this, 'Amplify', {
       region: cdk.Stack.of(this).region,
       account: cdk.Stack.of(this).account,
+      amplifyAppId,
     });
 
     // ============================================
