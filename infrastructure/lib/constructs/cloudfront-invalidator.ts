@@ -80,7 +80,7 @@ export class CloudFrontInvalidator extends Construct {
         detailType: ['Amplify Deployment State Change'],
         detail: {
           appId: [props.amplifyAppId],
-          jobStatus: ['SUCCEED'],
+          jobStatus: ['SUCCEED', 'SUCCEED_WITH_WARNINGS'],
         },
       },
     });
